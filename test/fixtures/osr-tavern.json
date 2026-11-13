@@ -1,0 +1,4041 @@
+{
+  "format": 1,
+  "id": "osr",
+  "kind": "system",
+  "name": "OSR",
+  "version": "0.2.0",
+  "description": "The Whiterook rules on Tavern Moot: an AD&D-flavoured OSR system with home-brewable magic.",
+  "authors": [
+    "DragonsDrinkFree"
+  ],
+  "compatibility": {
+    "core": ">=0.0.1"
+  },
+  "rules": "rules.mjs",
+  "movement": {
+    "scales": [
+      {
+        "id": "combat",
+        "label": "Encounter",
+        "unit": "round",
+        "refresh": "combatTurn"
+      },
+      {
+        "id": "exploration",
+        "label": "Exploration",
+        "unit": "turn",
+        "refresh": "clock"
+      },
+      {
+        "id": "overland",
+        "label": "Overland",
+        "unit": "day",
+        "refresh": "clock"
+      }
+    ],
+    "party": [
+      {
+        "scale": "exploration",
+        "share": "together",
+        "modes": [
+          {
+            "id": "walk",
+            "label": "Exploring",
+            "from": "members",
+            "mode": "walk"
+          }
+        ]
+      },
+      {
+        "scale": "overland",
+        "share": "together",
+        "modes": [
+          {
+            "id": "vehicle",
+            "label": "By vehicle",
+            "from": "role:vehicle",
+            "mode": "miles"
+          },
+          {
+            "id": "vehicle-tp",
+            "label": "By vehicle (Travel Points)",
+            "from": "role:vehicle",
+            "mode": "travel-points"
+          },
+          {
+            "id": "mounted",
+            "label": "Mounted",
+            "from": "role:mount",
+            "mode": "miles",
+            "without": "block"
+          },
+          {
+            "id": "mounted-tp",
+            "label": "Mounted (Travel Points)",
+            "from": "role:mount",
+            "mode": "travel-points",
+            "without": "block"
+          },
+          {
+            "id": "mounted-forced",
+            "label": "Mounted, forced march",
+            "from": "role:mount",
+            "mode": "forced",
+            "without": "block"
+          },
+          {
+            "id": "miles",
+            "label": "On foot",
+            "from": "members",
+            "mode": "miles"
+          },
+          {
+            "id": "travel-points",
+            "label": "Travel Points",
+            "from": "members",
+            "mode": "travel-points"
+          },
+          {
+            "id": "forced",
+            "label": "Forced march",
+            "from": "members",
+            "mode": "forced"
+          }
+        ]
+      }
+    ]
+  },
+  "party": {
+    "roles": [
+      {
+        "id": "mount",
+        "label": "Mount",
+        "of": "member",
+        "split": true
+      },
+      {
+        "id": "vehicle",
+        "label": "Vehicle",
+        "of": "party",
+        "split": true
+      }
+    ]
+  },
+  "combat": {
+    "initiative": {
+      "mode": "group",
+      "formula": "1d6",
+      "order": "desc",
+      "reroll": "round",
+      "ties": "together",
+      "tiebreak": "@derived.initiative.tiebreak ?? 0"
+    },
+    "phases": [
+      {
+        "id": "declare",
+        "kind": "declare",
+        "label": "Declarations",
+        "icon": "🗣",
+        "visibility": "open",
+        "order": "together",
+        "actions": [
+          {
+            "id": "cast",
+            "label": "Cast a spell or rune",
+            "icon": "✨",
+            "description": "Cast a spell or use a fairy rune in the Magic phase. No moving this round; harmed before your side acts, it fizzles."
+          },
+          {
+            "id": "retreat",
+            "label": "Retreat from melee",
+            "icon": "🏳",
+            "description": "Flee or withdraw from melee. Opponents who win initiative may attack you with a bonus."
+          }
+        ]
+      },
+      {
+        "id": "initiative",
+        "kind": "initiative",
+        "label": "Initiative",
+        "icon": "🎲"
+      },
+      {
+        "id": "sides",
+        "kind": "each",
+        "label": "Each side",
+        "of": "side",
+        "order": "entry",
+        "children": [
+          {
+            "id": "move",
+            "label": "Movement",
+            "kind": "step",
+            "icon": "🏃",
+            "refresh": "movement"
+          },
+          {
+            "id": "missile",
+            "label": "Missile",
+            "kind": "step",
+            "icon": "🏹"
+          },
+          {
+            "id": "magic",
+            "label": "Magic",
+            "kind": "turns",
+            "icon": "✨",
+            "needs": [
+              "cast"
+            ]
+          },
+          {
+            "id": "melee",
+            "label": "Melee",
+            "kind": "step",
+            "icon": "⚔"
+          }
+        ]
+      },
+      {
+        "id": "morale",
+        "kind": "step",
+        "label": "Morale",
+        "icon": "⚑"
+      }
+    ],
+    "economy": {
+      "pools": [
+        {
+          "id": "actions",
+          "label": "Action",
+          "amount": "1"
+        }
+      ],
+      "advance": "auto"
+    },
+    "actions": [
+      {
+        "id": "moved",
+        "label": "Done moving",
+        "icon": "🏃",
+        "hint": "Movement is free; this ends your Movement.",
+        "phases": [
+          "move"
+        ],
+        "shows": "movement"
+      },
+      {
+        "id": "shoot",
+        "label": "Shoot",
+        "icon": "🏹",
+        "hint": "Uses your action this round.",
+        "phases": [
+          "missile"
+        ],
+        "items": {
+          "types": [
+            "osr.weapon"
+          ]
+        },
+        "action": "combat-weapon",
+        "dialog": {
+          "page": "ui/combat-weapon.html",
+          "style": "popover"
+        },
+        "cost": {
+          "actions": 1
+        }
+      },
+      {
+        "id": "attack",
+        "label": "Attack",
+        "icon": "⚔",
+        "hint": "Uses your action this round.",
+        "phases": [
+          "melee"
+        ],
+        "items": {
+          "types": [
+            "osr.weapon"
+          ]
+        },
+        "action": "combat-weapon",
+        "dialog": {
+          "page": "ui/combat-weapon.html",
+          "style": "popover"
+        },
+        "cost": {
+          "actions": 1
+        }
+      },
+      {
+        "id": "cast",
+        "label": "Cast",
+        "icon": "✨",
+        "hint": "Uses your action this round.",
+        "phases": [
+          "magic"
+        ],
+        "action": "combat-cast",
+        "cost": {
+          "actions": 1
+        },
+        "items": {
+          "types": [
+            "osr.spell"
+          ],
+          "depth": "all"
+        }
+      },
+      {
+        "id": "creature-missile",
+        "label": "Missile attacks",
+        "icon": "🏹",
+        "hint": "Uses your action this round.",
+        "phases": [
+          "missile"
+        ],
+        "action": "combat-creature",
+        "cost": {
+          "actions": 1
+        }
+      },
+      {
+        "id": "creature-melee",
+        "label": "Attack",
+        "icon": "⚔",
+        "hint": "Uses your action this round.",
+        "phases": [
+          "melee"
+        ],
+        "action": "combat-creature",
+        "cost": {
+          "actions": 1
+        }
+      }
+    ],
+    "kinds": [
+      {
+        "id": "encounter",
+        "label": "Encounter",
+        "icon": "⚔",
+        "scale": "combat"
+      }
+    ]
+  },
+  "time": {
+    "units": [
+      {
+        "id": "round",
+        "label": "Round",
+        "seconds": 10
+      },
+      {
+        "id": "turn",
+        "label": "Turn",
+        "seconds": 600
+      }
+    ],
+    "controls": [
+      {
+        "label": "+ Turn",
+        "unit": "turn",
+        "more": [
+          2,
+          3,
+          6
+        ]
+      },
+      {
+        "label": "+ Hour",
+        "unit": "hour",
+        "more": [
+          2,
+          3,
+          4,
+          6,
+          8
+        ]
+      },
+      {
+        "label": "+ Day",
+        "unit": "day",
+        "more": [
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "label": "Pass time…",
+        "dialog": true,
+        "units": [
+          "turn",
+          "round",
+          "hour",
+          "day",
+          "week",
+          "month",
+          "year"
+        ]
+      }
+    ]
+  },
+  "settings": {
+    "campaign": [],
+    "user": []
+  },
+  "themes": [
+    {
+      "id": "burnished-bronze",
+      "label": "Burnished Bronze",
+      "kind": "document",
+      "scheme": "dark",
+      "tokens": {
+        "--bg-main": "#1a1a1d",
+        "--bg-raised": "#242428",
+        "--bg-input": "#2c2c31",
+        "--text": "#e8e3d8",
+        "--text-strong": "#f4efe4",
+        "--text-muted": "#a6a094",
+        "--border": "#b8860b",
+        "--accent": "#cd7f32",
+        "--accent-hover": "#e0a458",
+        "--accent-contrast": "#1a1a1d",
+        "--ok": "#4caf6d",
+        "--danger": "#d9534f",
+        "--note-bg": "#1a1a1d",
+        "--note-text": "#e8e3d8",
+        "--note-h1": "#f0c478",
+        "--note-h2": "#e0a458",
+        "--note-h3": "#cd7f32",
+        "--note-link": "#e0a458",
+        "--note-rule": "#b8860b",
+        "--note-table-border": "#b8860b",
+        "--resource-red": "#d9534f",
+        "--resource-gold": "#e0a458",
+        "--osr-bg": "#1a1a1d",
+        "--osr-bg-raised": "#242428",
+        "--osr-text": "#e8e3d8",
+        "--osr-text-dim": "#a6a094",
+        "--osr-bronze": "#cd7f32",
+        "--osr-gold": "#e0a458",
+        "--osr-gold-bright": "#f0c478"
+      },
+      "defaultFor": [
+        "osr.character",
+        "osr.class",
+        "osr.ancestry",
+        "osr.ability",
+        "osr.resource",
+        "osr.item",
+        "osr.armor",
+        "osr.weapon",
+        "osr.ammunition",
+        "osr.container",
+        "osr.treasure",
+        "osr.spell"
+      ]
+    }
+  ],
+  "permissions": [
+    "documents.write:osr.class",
+    "documents.write:osr.ability",
+    "documents.write:osr.resource",
+    "documents.write:osr.treasure",
+    "documents.write:osr.weapon",
+    "documents.write:osr.ammunition",
+    "ui.sheet:core.party",
+    "ui.session:xp",
+    "hooks.on:clock.changed",
+    "hooks.before:token.create",
+    "hooks.before:combat.rules",
+    "hooks.before:combat.actions"
+  ],
+  "store": {
+    "homebrew": {
+      "read": "everyone",
+      "write": "gm"
+    },
+    "ledger": {
+      "read": "everyone",
+      "write": "rules"
+    }
+  },
+  "ui": [
+    {
+      "id": "character",
+      "kind": "sheet",
+      "label": "Whiterook character",
+      "types": [
+        "osr.character"
+      ],
+      "entry": "ui/character.html",
+      "drops": true,
+      "size": {
+        "width": 600,
+        "height": 900
+      },
+      "minSize": {
+        "width": 520,
+        "height": 520
+      }
+    },
+    {
+      "id": "item",
+      "kind": "sheet",
+      "label": "Whiterook item",
+      "types": [
+        "osr.class",
+        "osr.ancestry",
+        "osr.ability",
+        "osr.resource",
+        "osr.item",
+        "osr.armor",
+        "osr.weapon",
+        "osr.ammunition",
+        "osr.container",
+        "osr.treasure",
+        "osr.spell"
+      ],
+      "entry": "ui/item.html",
+      "drops": true,
+      "size": {
+        "width": 560,
+        "height": 560
+      },
+      "minSize": {
+        "width": 420,
+        "height": 360
+      }
+    },
+    {
+      "id": "party",
+      "kind": "sheet",
+      "label": "Party",
+      "types": [
+        "core.party"
+      ],
+      "entry": "ui/party.html",
+      "size": {
+        "width": 820,
+        "height": 640
+      },
+      "minSize": {
+        "width": 520,
+        "height": 420
+      },
+      "drops": true
+    },
+    {
+      "id": "xp",
+      "kind": "session",
+      "label": "Experience",
+      "entry": "ui/session.html"
+    }
+  ],
+  "documentTypes": [
+    {
+      "name": "character",
+      "category": "actor",
+      "label": "Character",
+      "labelPlural": "Characters",
+      "icon": "⚔",
+      "image": "img",
+      "effectsTab": false,
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Portrait"
+        },
+        {
+          "key": "abilities",
+          "type": "group",
+          "label": "Abilities",
+          "fields": [
+            {
+              "key": "str",
+              "type": "group",
+              "label": "Strength",
+              "fields": [
+                {
+                  "key": "value",
+                  "type": "number",
+                  "label": "Score",
+                  "integer": true,
+                  "default": 10
+                },
+                {
+                  "key": "bonus",
+                  "type": "number",
+                  "label": "Bonus",
+                  "integer": true,
+                  "default": 0
+                }
+              ]
+            },
+            {
+              "key": "dex",
+              "type": "group",
+              "label": "Dexterity",
+              "fields": [
+                {
+                  "key": "value",
+                  "type": "number",
+                  "label": "Score",
+                  "integer": true,
+                  "default": 10
+                },
+                {
+                  "key": "bonus",
+                  "type": "number",
+                  "label": "Bonus",
+                  "integer": true,
+                  "default": 0
+                }
+              ]
+            },
+            {
+              "key": "con",
+              "type": "group",
+              "label": "Constitution",
+              "fields": [
+                {
+                  "key": "value",
+                  "type": "number",
+                  "label": "Score",
+                  "integer": true,
+                  "default": 10
+                },
+                {
+                  "key": "bonus",
+                  "type": "number",
+                  "label": "Bonus",
+                  "integer": true,
+                  "default": 0
+                }
+              ]
+            },
+            {
+              "key": "int",
+              "type": "group",
+              "label": "Intelligence",
+              "fields": [
+                {
+                  "key": "value",
+                  "type": "number",
+                  "label": "Score",
+                  "integer": true,
+                  "default": 10
+                },
+                {
+                  "key": "bonus",
+                  "type": "number",
+                  "label": "Bonus",
+                  "integer": true,
+                  "default": 0
+                }
+              ]
+            },
+            {
+              "key": "wis",
+              "type": "group",
+              "label": "Wisdom",
+              "fields": [
+                {
+                  "key": "value",
+                  "type": "number",
+                  "label": "Score",
+                  "integer": true,
+                  "default": 10
+                },
+                {
+                  "key": "bonus",
+                  "type": "number",
+                  "label": "Bonus",
+                  "integer": true,
+                  "default": 0
+                }
+              ]
+            },
+            {
+              "key": "cha",
+              "type": "group",
+              "label": "Charisma",
+              "fields": [
+                {
+                  "key": "value",
+                  "type": "number",
+                  "label": "Score",
+                  "integer": true,
+                  "default": 10
+                },
+                {
+                  "key": "bonus",
+                  "type": "number",
+                  "label": "Bonus",
+                  "integer": true,
+                  "default": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "bonuses",
+          "type": "group",
+          "label": "Bonuses",
+          "fields": [
+            {
+              "key": "ac",
+              "type": "number",
+              "label": "AC",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "attack",
+              "type": "number",
+              "label": "Attack",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "attackMelee",
+              "type": "number",
+              "label": "Melee attack",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "attackMissile",
+              "type": "number",
+              "label": "Missile attack",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "initiative",
+              "type": "number",
+              "label": "Initiative",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "initiativeTiebreak",
+              "type": "number",
+              "label": "Initiative tie-break",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "magicResist",
+              "type": "number",
+              "label": "Magic resist",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "saves",
+              "type": "group",
+              "label": "Save bonuses",
+              "fields": [
+                {
+                  "key": "death",
+                  "type": "group",
+                  "label": "Death",
+                  "fields": [
+                    {
+                      "key": "always",
+                      "type": "number",
+                      "label": "Always",
+                      "integer": true,
+                      "default": 0
+                    },
+                    {
+                      "key": "optional",
+                      "type": "number",
+                      "label": "Optional",
+                      "integer": true,
+                      "default": 0
+                    }
+                  ]
+                },
+                {
+                  "key": "ray",
+                  "type": "group",
+                  "label": "Ray",
+                  "fields": [
+                    {
+                      "key": "always",
+                      "type": "number",
+                      "label": "Always",
+                      "integer": true,
+                      "default": 0
+                    },
+                    {
+                      "key": "optional",
+                      "type": "number",
+                      "label": "Optional",
+                      "integer": true,
+                      "default": 0
+                    }
+                  ]
+                },
+                {
+                  "key": "hold",
+                  "type": "group",
+                  "label": "Hold",
+                  "fields": [
+                    {
+                      "key": "always",
+                      "type": "number",
+                      "label": "Always",
+                      "integer": true,
+                      "default": 0
+                    },
+                    {
+                      "key": "optional",
+                      "type": "number",
+                      "label": "Optional",
+                      "integer": true,
+                      "default": 0
+                    }
+                  ]
+                },
+                {
+                  "key": "breath",
+                  "type": "group",
+                  "label": "Breath",
+                  "fields": [
+                    {
+                      "key": "always",
+                      "type": "number",
+                      "label": "Always",
+                      "integer": true,
+                      "default": 0
+                    },
+                    {
+                      "key": "optional",
+                      "type": "number",
+                      "label": "Optional",
+                      "integer": true,
+                      "default": 0
+                    }
+                  ]
+                },
+                {
+                  "key": "spell",
+                  "type": "group",
+                  "label": "Spell",
+                  "fields": [
+                    {
+                      "key": "always",
+                      "type": "number",
+                      "label": "Always",
+                      "integer": true,
+                      "default": 0
+                    },
+                    {
+                      "key": "optional",
+                      "type": "number",
+                      "label": "Optional",
+                      "integer": true,
+                      "default": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "hp",
+          "type": "resource",
+          "label": "Hit Points",
+          "default": 0
+        },
+        {
+          "key": "xp",
+          "type": "group",
+          "label": "Experience",
+          "fields": [
+            {
+              "key": "pending",
+              "type": "number",
+              "label": "Awarded XP",
+              "integer": true,
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "primeRequisite",
+              "type": "number",
+              "label": "Prime Requisite XP %",
+              "integer": true,
+              "min": -100,
+              "max": 100,
+              "default": 0,
+              "hint": "Adjusts XP as Awarded XP is distributed to classes (B/X: -20, -10, 0, +5, +10)"
+            }
+          ]
+        },
+        {
+          "key": "background",
+          "type": "text",
+          "label": "Background",
+          "max": 200
+        },
+        {
+          "key": "movement",
+          "type": "group",
+          "label": "Movement",
+          "fields": [
+            {
+              "key": "base",
+              "type": "number",
+              "label": "Base speed (unencumbered)",
+              "integer": true,
+              "min": 0,
+              "default": 120
+            }
+          ],
+          "hint": "Base movement: feet per exploration turn, unencumbered (B/X; Dolmenwood Speed x3). Home Brew's encumbrance slows it by what is carried, and its movement rules work each scale's speed from the result"
+        },
+        {
+          "key": "notes",
+          "type": "markdown",
+          "label": "Notes"
+        }
+      ],
+      "derived": [
+        {
+          "key": "abilities",
+          "label": "Abilities",
+          "code": true
+        },
+        {
+          "key": "saves",
+          "label": "Saves",
+          "code": true
+        },
+        {
+          "key": "saveBonuses",
+          "label": "Save bonuses",
+          "code": true
+        },
+        {
+          "key": "magicResist",
+          "label": "Magic resist",
+          "code": true
+        },
+        {
+          "key": "ac",
+          "label": "Armor class",
+          "code": true
+        },
+        {
+          "key": "attack",
+          "label": "Attack bonus",
+          "code": true
+        },
+        {
+          "key": "initiative",
+          "label": "Initiative",
+          "code": true
+        },
+        {
+          "key": "level",
+          "label": "Level",
+          "code": true
+        },
+        {
+          "key": "casting",
+          "label": "Spellcasting",
+          "code": true
+        },
+        {
+          "key": "resourceBonuses",
+          "label": "Resource bonuses",
+          "code": true
+        },
+        {
+          "key": "carriedWeight",
+          "label": "Carried weight",
+          "code": true
+        },
+        {
+          "key": "encumbrance",
+          "label": "Encumbrance",
+          "code": true
+        },
+        {
+          "key": "treasure",
+          "label": "Treasure",
+          "code": true
+        },
+        {
+          "key": "nested",
+          "label": "Nested items",
+          "code": true
+        },
+        {
+          "key": "classNames",
+          "label": "Classes",
+          "code": true
+        },
+        {
+          "key": "speeds",
+          "label": "Speeds",
+          "code": true
+        }
+      ],
+      "contains": [
+        "item"
+      ],
+      "movement": [
+        {
+          "scale": "combat",
+          "modes": [
+            {
+              "id": "walk",
+              "label": "Encounter",
+              "speed": "@derived.speeds.encounter"
+            },
+            {
+              "id": "run",
+              "label": "Running",
+              "speed": "@derived.speeds.running"
+            }
+          ]
+        },
+        {
+          "scale": "exploration",
+          "modes": [
+            {
+              "id": "walk",
+              "label": "Exploring",
+              "speed": "@derived.speeds.exploration"
+            }
+          ]
+        },
+        {
+          "scale": "overland",
+          "modes": [
+            {
+              "id": "miles",
+              "label": "Miles per day",
+              "speed": "@derived.speeds.miles"
+            },
+            {
+              "id": "forced",
+              "label": "Forced march",
+              "speed": "@derived.speeds.forcedMarch"
+            },
+            {
+              "id": "travel-points",
+              "label": "Travel Points",
+              "speed": "@derived.speeds.travelPoints"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "creature",
+      "category": "actor",
+      "label": "Creature",
+      "labelPlural": "Creatures",
+      "icon": "🐺",
+      "image": "portrait",
+      "contains": [
+        "item"
+      ],
+      "fields": [
+        {
+          "key": "portrait",
+          "type": "image",
+          "label": "Portrait"
+        },
+        {
+          "key": "level",
+          "type": "number",
+          "label": "Level / HD",
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "hpDice",
+          "type": "text",
+          "label": "HP dice",
+          "max": 20,
+          "default": "1d8"
+        },
+        {
+          "key": "hp",
+          "type": "resource",
+          "label": "Hit Points",
+          "default": 4
+        },
+        {
+          "key": "ac",
+          "type": "number",
+          "label": "Armour Class",
+          "integer": true,
+          "default": 10
+        },
+        {
+          "key": "saves",
+          "type": "list",
+          "label": "Saving throws",
+          "maxRows": 12,
+          "fields": [
+            {
+              "key": "label",
+              "type": "text",
+              "label": "Save",
+              "max": 40
+            },
+            {
+              "key": "target",
+              "type": "number",
+              "label": "Target",
+              "integer": true,
+              "min": 1,
+              "max": 30,
+              "default": 14
+            }
+          ]
+        },
+        {
+          "key": "morale",
+          "type": "number",
+          "label": "Morale",
+          "integer": true,
+          "min": 2,
+          "max": 12,
+          "default": 7
+        },
+        {
+          "key": "xpAward",
+          "type": "number",
+          "label": "XP award",
+          "integer": true,
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "size",
+          "type": "select",
+          "label": "Size",
+          "options": [
+            {
+              "value": "small",
+              "label": "Small"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "large",
+              "label": "Large"
+            }
+          ],
+          "default": "medium"
+        },
+        {
+          "key": "monsterType",
+          "type": "text",
+          "label": "Type",
+          "max": 40,
+          "default": "mortal"
+        },
+        {
+          "key": "intelligence",
+          "type": "text",
+          "label": "Intelligence",
+          "max": 40
+        },
+        {
+          "key": "alignment",
+          "type": "text",
+          "label": "Alignment",
+          "max": 40
+        },
+        {
+          "key": "attacks",
+          "type": "list",
+          "label": "Attacks",
+          "maxRows": 20,
+          "fields": [
+            {
+              "key": "attackName",
+              "type": "text",
+              "label": "Attack",
+              "max": 80
+            },
+            {
+              "key": "numAttacks",
+              "type": "number",
+              "label": "Number",
+              "integer": true,
+              "min": 1,
+              "default": 1
+            },
+            {
+              "key": "attackBonus",
+              "type": "number",
+              "label": "Bonus",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "attackDamage",
+              "type": "text",
+              "label": "Damage",
+              "max": 40,
+              "default": "1d6"
+            },
+            {
+              "key": "attackEffect",
+              "type": "text",
+              "label": "Effect",
+              "max": 80
+            },
+            {
+              "key": "attackType",
+              "type": "select",
+              "label": "Type",
+              "options": [
+                {
+                  "value": "attack",
+                  "label": "Attack"
+                },
+                {
+                  "value": "breath",
+                  "label": "Breath"
+                },
+                {
+                  "value": "spell",
+                  "label": "Spell"
+                },
+                {
+                  "value": "other",
+                  "label": "Other"
+                }
+              ],
+              "default": "attack"
+            },
+            {
+              "key": "rangeShort",
+              "type": "number",
+              "label": "Range short",
+              "integer": true,
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "rangeMedium",
+              "type": "number",
+              "label": "Range medium",
+              "integer": true,
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "rangeLong",
+              "type": "number",
+              "label": "Range long",
+              "integer": true,
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "attackGroup",
+              "type": "text",
+              "label": "Group",
+              "max": 40
+            }
+          ]
+        },
+        {
+          "key": "specialAbilities",
+          "type": "list",
+          "label": "Special abilities",
+          "maxRows": 40,
+          "fields": [
+            {
+              "key": "name",
+              "type": "text",
+              "label": "Name",
+              "max": 80
+            },
+            {
+              "key": "description",
+              "type": "markdown",
+              "label": "Description"
+            }
+          ]
+        },
+        {
+          "key": "encounters",
+          "type": "text",
+          "label": "Number appearing",
+          "max": 40
+        },
+        {
+          "key": "lairChance",
+          "type": "number",
+          "label": "Lair chance (%)",
+          "integer": true,
+          "min": 0,
+          "max": 100,
+          "default": 0
+        },
+        {
+          "key": "behaviour",
+          "type": "markdown",
+          "label": "Behaviour"
+        },
+        {
+          "key": "speech",
+          "type": "text",
+          "label": "Speech",
+          "max": 200
+        },
+        {
+          "key": "possessions",
+          "type": "text",
+          "label": "Possessions",
+          "max": 200
+        },
+        {
+          "key": "treasureType",
+          "type": "text",
+          "label": "Treasure type",
+          "max": 60
+        },
+        {
+          "key": "mount",
+          "type": "boolean",
+          "label": "Can be ridden / pack animal"
+        },
+        {
+          "key": "carry",
+          "type": "number",
+          "label": "Carrying capacity (coins)",
+          "integer": true,
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "movement",
+          "type": "group",
+          "label": "Movement",
+          "fields": [
+            {
+              "key": "base",
+              "type": "number",
+              "label": "Base speed",
+              "integer": true,
+              "min": 0,
+              "default": 120
+            },
+            {
+              "key": "travelPoints",
+              "type": "number",
+              "label": "Travel Points per day",
+              "min": 0,
+              "default": 0,
+              "hint": "Dolmenwood: its own Travel Points a day (0: Speed / 5)"
+            }
+          ],
+          "hint": "Base movement: feet per exploration turn (B/X; Dolmenwood Speed x3). Each scale's speed is worked from it by Home Brew's movement rules"
+        },
+        {
+          "key": "notes",
+          "type": "markdown",
+          "label": "Notes"
+        },
+        {
+          "key": "gmNotes",
+          "type": "markdown",
+          "label": "GM notes",
+          "visibility": "gm"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "attack",
+          "label": "{attackName}",
+          "formula": "1d20 + @row.attackBonus",
+          "each": "attacks"
+        },
+        {
+          "id": "damage",
+          "label": "{attackName} damage",
+          "code": true,
+          "each": "attacks"
+        },
+        {
+          "id": "save",
+          "label": "{label} save",
+          "formula": "1d20",
+          "each": "saves"
+        },
+        {
+          "id": "morale",
+          "label": "Morale",
+          "formula": "2d6"
+        },
+        {
+          "id": "hitdice",
+          "label": "Roll HP",
+          "code": true
+        }
+      ],
+      "layout": {
+        "tabs": [
+          {
+            "label": "Stat block",
+            "sections": [
+              {
+                "columns": 3,
+                "items": [
+                  {
+                    "field": "portrait"
+                  },
+                  {
+                    "field": "level"
+                  },
+                  {
+                    "field": "hpDice"
+                  },
+                  {
+                    "field": "hp"
+                  },
+                  {
+                    "field": "ac"
+                  },
+                  {
+                    "field": "morale"
+                  },
+                  {
+                    "field": "xpAward"
+                  },
+                  {
+                    "field": "size"
+                  },
+                  {
+                    "field": "monsterType"
+                  },
+                  {
+                    "field": "intelligence"
+                  },
+                  {
+                    "field": "alignment"
+                  },
+                  {
+                    "roll": "hitdice"
+                  },
+                  {
+                    "roll": "morale"
+                  }
+                ]
+              },
+              {
+                "label": "Attacks",
+                "items": [
+                  {
+                    "field": "attacks"
+                  },
+                  {
+                    "roll": "attack"
+                  },
+                  {
+                    "roll": "damage"
+                  }
+                ]
+              },
+              {
+                "label": "Saves",
+                "items": [
+                  {
+                    "field": "saves"
+                  },
+                  {
+                    "roll": "save"
+                  }
+                ]
+              },
+              {
+                "label": "Special abilities",
+                "items": [
+                  {
+                    "field": "specialAbilities"
+                  }
+                ]
+              },
+              {
+                "label": "Movement",
+                "items": [
+                  {
+                    "field": "movement"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Lore",
+            "sections": [
+              {
+                "columns": 2,
+                "items": [
+                  {
+                    "field": "encounters"
+                  },
+                  {
+                    "field": "lairChance"
+                  },
+                  {
+                    "field": "speech"
+                  },
+                  {
+                    "field": "possessions"
+                  },
+                  {
+                    "field": "treasureType"
+                  }
+                ]
+              },
+              {
+                "items": [
+                  {
+                    "field": "behaviour"
+                  },
+                  {
+                    "field": "mount"
+                  },
+                  {
+                    "field": "carry"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Items",
+            "sections": [
+              {
+                "items": [
+                  {
+                    "items": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Notes",
+            "sections": [
+              {
+                "items": [
+                  {
+                    "field": "notes"
+                  },
+                  {
+                    "field": "gmNotes"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "movement": [
+        {
+          "scale": "combat",
+          "modes": [
+            {
+              "id": "walk",
+              "label": "Encounter",
+              "speed": "@derived.speeds.encounter"
+            },
+            {
+              "id": "run",
+              "label": "Running",
+              "speed": "@derived.speeds.running"
+            }
+          ]
+        },
+        {
+          "scale": "exploration",
+          "modes": [
+            {
+              "id": "walk",
+              "label": "Exploring",
+              "speed": "@derived.speeds.exploration"
+            }
+          ]
+        },
+        {
+          "scale": "overland",
+          "modes": [
+            {
+              "id": "miles",
+              "label": "Miles per day",
+              "speed": "@derived.speeds.miles"
+            },
+            {
+              "id": "forced",
+              "label": "Forced march",
+              "speed": "@derived.speeds.forcedMarch"
+            },
+            {
+              "id": "travel-points",
+              "label": "Travel Points",
+              "speed": "@derived.speeds.travelPoints"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vehicle",
+      "category": "actor",
+      "label": "Vehicle",
+      "labelPlural": "Vehicles",
+      "icon": "⛵",
+      "image": "portrait",
+      "contains": [
+        "item"
+      ],
+      "fields": [
+        {
+          "key": "portrait",
+          "type": "image",
+          "label": "Portrait"
+        },
+        {
+          "key": "vehicleType",
+          "type": "text",
+          "label": "Vehicle type",
+          "max": 60
+        },
+        {
+          "key": "cost",
+          "type": "number",
+          "label": "Cost",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "hp",
+          "type": "resource",
+          "label": "Hit Points",
+          "default": 20
+        },
+        {
+          "key": "hpDice",
+          "type": "text",
+          "label": "HP dice",
+          "max": 20
+        },
+        {
+          "key": "ac",
+          "type": "number",
+          "label": "Armour Class",
+          "integer": true,
+          "default": 10
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "label": "Speed",
+          "integer": true,
+          "min": 0,
+          "default": 40
+        },
+        {
+          "key": "cargo",
+          "type": "number",
+          "label": "Cargo capacity (coins)",
+          "integer": true,
+          "min": 0,
+          "default": 5000
+        },
+        {
+          "key": "passengers",
+          "type": "number",
+          "label": "Passengers",
+          "integer": true,
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "crew",
+          "type": "text",
+          "label": "Crew",
+          "max": 100
+        },
+        {
+          "key": "animals",
+          "type": "text",
+          "label": "Draught animals",
+          "max": 100
+        },
+        {
+          "key": "movement",
+          "type": "group",
+          "label": "Movement",
+          "fields": [
+            {
+              "key": "base",
+              "type": "number",
+              "label": "Base speed",
+              "integer": true,
+              "min": 0,
+              "default": 120
+            },
+            {
+              "key": "travelPoints",
+              "type": "number",
+              "label": "Travel Points per day",
+              "min": 0,
+              "default": 0,
+              "hint": "Dolmenwood: its own Travel Points a day (0: Speed / 5)"
+            }
+          ],
+          "hint": "Base movement: feet per exploration turn (B/X; Dolmenwood Speed x3). Each scale's speed is worked from it by Home Brew's movement rules"
+        },
+        {
+          "key": "notes",
+          "type": "markdown",
+          "label": "Notes"
+        }
+      ],
+      "derived": [
+        {
+          "key": "cargoLoad",
+          "label": "Cargo load (coins)",
+          "code": true
+        },
+        {
+          "key": "speeds",
+          "label": "Speeds",
+          "code": true
+        }
+      ],
+      "layout": {
+        "tabs": [
+          {
+            "label": "Vehicle",
+            "sections": [
+              {
+                "columns": 3,
+                "items": [
+                  {
+                    "field": "portrait"
+                  },
+                  {
+                    "field": "vehicleType"
+                  },
+                  {
+                    "field": "cost"
+                  },
+                  {
+                    "field": "hp"
+                  },
+                  {
+                    "field": "hpDice"
+                  },
+                  {
+                    "field": "ac"
+                  },
+                  {
+                    "field": "speed"
+                  },
+                  {
+                    "field": "cargo"
+                  },
+                  {
+                    "field": "passengers"
+                  },
+                  {
+                    "field": "crew"
+                  },
+                  {
+                    "field": "animals"
+                  },
+                  {
+                    "derived": "cargoLoad"
+                  }
+                ]
+              },
+              {
+                "label": "Movement",
+                "items": [
+                  {
+                    "field": "movement"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Cargo",
+            "sections": [
+              {
+                "items": [
+                  {
+                    "items": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Notes",
+            "sections": [
+              {
+                "items": [
+                  {
+                    "field": "notes"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "movement": [
+        {
+          "scale": "combat",
+          "modes": [
+            {
+              "id": "move",
+              "label": "Move",
+              "speed": "@derived.speeds.encounter"
+            }
+          ]
+        },
+        {
+          "scale": "exploration",
+          "modes": [
+            {
+              "id": "move",
+              "label": "Move",
+              "speed": "@derived.speeds.exploration"
+            }
+          ]
+        },
+        {
+          "scale": "overland",
+          "modes": [
+            {
+              "id": "miles",
+              "label": "Miles per day",
+              "speed": "@derived.speeds.miles"
+            },
+            {
+              "id": "travel-points",
+              "label": "Travel Points",
+              "speed": "@derived.speeds.travelPoints"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "class",
+      "category": "item",
+      "label": "Class",
+      "labelPlural": "Classes",
+      "icon": "📜",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "hitDice",
+          "type": "text",
+          "label": "Hit dice",
+          "max": 40,
+          "default": "d8"
+        },
+        {
+          "key": "levels",
+          "type": "list",
+          "label": "Level chart",
+          "fields": [
+            {
+              "key": "xp",
+              "type": "number",
+              "label": "XP",
+              "integer": true,
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "attack",
+              "type": "number",
+              "label": "Attack",
+              "integer": true,
+              "default": 0
+            },
+            {
+              "key": "death",
+              "type": "number",
+              "label": "Death",
+              "integer": true,
+              "min": 0,
+              "max": 20,
+              "default": 18
+            },
+            {
+              "key": "ray",
+              "type": "number",
+              "label": "Ray",
+              "integer": true,
+              "min": 0,
+              "max": 20,
+              "default": 18
+            },
+            {
+              "key": "hold",
+              "type": "number",
+              "label": "Hold",
+              "integer": true,
+              "min": 0,
+              "max": 20,
+              "default": 18
+            },
+            {
+              "key": "breath",
+              "type": "number",
+              "label": "Breath",
+              "integer": true,
+              "min": 0,
+              "max": 20,
+              "default": 18
+            },
+            {
+              "key": "spell",
+              "type": "number",
+              "label": "Spell",
+              "integer": true,
+              "min": 0,
+              "max": 20,
+              "default": 18
+            }
+          ],
+          "maxRows": 40
+        },
+        {
+          "key": "xp",
+          "type": "number",
+          "label": "Class XP",
+          "integer": true,
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "level",
+          "type": "number",
+          "label": "Level",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "active",
+          "type": "boolean",
+          "label": "Active",
+          "default": true
+        },
+        {
+          "key": "castings",
+          "type": "json",
+          "label": "Spellcasting systems",
+          "max": 20000
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false
+    },
+    {
+      "name": "ancestry",
+      "category": "item",
+      "label": "Ancestry",
+      "labelPlural": "Ancestries",
+      "icon": "🌳",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false
+    },
+    {
+      "name": "ability",
+      "category": "item",
+      "label": "Ability",
+      "labelPlural": "Abilities",
+      "icon": "✨",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "category",
+          "type": "text",
+          "label": "Category",
+          "max": 60
+        },
+        {
+          "key": "activation",
+          "type": "select",
+          "label": "Activation",
+          "options": [
+            {
+              "value": "passive",
+              "label": "Passive"
+            },
+            {
+              "value": "active",
+              "label": "Active"
+            },
+            {
+              "value": "toggle",
+              "label": "Toggle"
+            }
+          ],
+          "default": "passive"
+        },
+        {
+          "key": "active",
+          "type": "boolean",
+          "label": "On",
+          "default": false
+        },
+        {
+          "key": "favorite",
+          "type": "boolean",
+          "label": "Favorite",
+          "default": false
+        },
+        {
+          "key": "resolution",
+          "type": "select",
+          "label": "Resolution",
+          "options": [
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "formula",
+              "label": "Formula"
+            },
+            {
+              "value": "target",
+              "label": "Target Number"
+            },
+            {
+              "value": "save",
+              "label": "Saving Throw"
+            }
+          ],
+          "default": "none"
+        },
+        {
+          "key": "formula",
+          "type": "text",
+          "label": "Formula",
+          "max": 100
+        },
+        {
+          "key": "target",
+          "type": "number",
+          "label": "Target",
+          "integer": true,
+          "default": 0
+        },
+        {
+          "key": "comparison",
+          "type": "select",
+          "label": "Comparison",
+          "options": [
+            {
+              "value": "gte",
+              "label": "Roll ≥ target"
+            },
+            {
+              "value": "lte",
+              "label": "Roll ≤ target"
+            }
+          ],
+          "default": "gte"
+        },
+        {
+          "key": "save",
+          "type": "select",
+          "label": "Save",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "death",
+              "label": "Death"
+            },
+            {
+              "value": "ray",
+              "label": "Ray"
+            },
+            {
+              "value": "hold",
+              "label": "Hold"
+            },
+            {
+              "value": "breath",
+              "label": "Breath"
+            },
+            {
+              "value": "spell",
+              "label": "Spell"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "modifier",
+          "type": "select",
+          "label": "Modifier",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "str",
+              "label": "STR"
+            },
+            {
+              "value": "dex",
+              "label": "DEX"
+            },
+            {
+              "value": "con",
+              "label": "CON"
+            },
+            {
+              "value": "int",
+              "label": "INT"
+            },
+            {
+              "value": "wis",
+              "label": "WIS"
+            },
+            {
+              "value": "cha",
+              "label": "CHA"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "uses",
+          "type": "group",
+          "label": "Uses",
+          "fields": [
+            {
+              "key": "max",
+              "type": "number",
+              "label": "Max",
+              "integer": true,
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "value",
+              "type": "number",
+              "label": "Left",
+              "integer": true,
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "period",
+              "type": "select",
+              "label": "Refresh",
+              "options": [
+                {
+                  "value": "",
+                  "label": "—"
+                },
+                {
+                  "value": "turn",
+                  "label": "Turn"
+                },
+                {
+                  "value": "hour",
+                  "label": "Hour"
+                },
+                {
+                  "value": "day",
+                  "label": "Day"
+                },
+                {
+                  "value": "week",
+                  "label": "Week"
+                },
+                {
+                  "value": "year",
+                  "label": "Year"
+                },
+                {
+                  "value": "custom",
+                  "label": "Custom"
+                }
+              ],
+              "default": ""
+            },
+            {
+              "key": "customLabel",
+              "type": "text",
+              "label": "Custom refresh",
+              "max": 60
+            }
+          ]
+        },
+        {
+          "key": "costs",
+          "type": "list",
+          "label": "Resource costs",
+          "fields": [
+            {
+              "key": "slug",
+              "type": "text",
+              "label": "Resource",
+              "max": 60
+            },
+            {
+              "key": "amount",
+              "type": "number",
+              "label": "Amount",
+              "integer": true,
+              "min": 0,
+              "default": 1
+            }
+          ],
+          "maxRows": 10
+        },
+        {
+          "key": "costMode",
+          "type": "select",
+          "label": "Cost mode",
+          "options": [
+            {
+              "value": "all",
+              "label": "Spend all"
+            },
+            {
+              "value": "choice",
+              "label": "Choose one"
+            }
+          ],
+          "default": "all"
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false
+    },
+    {
+      "name": "resource",
+      "category": "item",
+      "label": "Resource",
+      "labelPlural": "Resources",
+      "icon": "◈",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identifier",
+          "type": "text",
+          "label": "Identifier",
+          "max": 60
+        },
+        {
+          "key": "max",
+          "type": "number",
+          "label": "Maximum",
+          "integer": true,
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "value",
+          "type": "number",
+          "label": "Current",
+          "integer": true,
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "period",
+          "type": "select",
+          "label": "Refresh",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "turn",
+              "label": "Turn"
+            },
+            {
+              "value": "hour",
+              "label": "Hour"
+            },
+            {
+              "value": "day",
+              "label": "Day"
+            },
+            {
+              "value": "week",
+              "label": "Week"
+            },
+            {
+              "value": "year",
+              "label": "Year"
+            },
+            {
+              "value": "custom",
+              "label": "Custom"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "customLabel",
+          "type": "text",
+          "label": "Custom refresh",
+          "max": 60
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false
+    },
+    {
+      "name": "item",
+      "category": "item",
+      "label": "Item",
+      "labelPlural": "Items",
+      "icon": "🎒",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identified",
+          "type": "boolean",
+          "label": "Identified",
+          "default": true
+        },
+        {
+          "key": "unidentifiedName",
+          "type": "text",
+          "label": "Unidentified name",
+          "max": 100
+        },
+        {
+          "key": "unidentifiedDescription",
+          "type": "markdown",
+          "label": "Unidentified description"
+        },
+        {
+          "key": "quantity",
+          "type": "number",
+          "label": "Quantity",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "label": "Weight",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "slots",
+          "type": "number",
+          "label": "Gear slots",
+          "min": 0,
+          "default": 1,
+          "hint": "Gear slots per bundle (Dolmenwood slot encumbrance): 1 for most things, 2 for bulky or two-handed, 0 for tiny"
+        },
+        {
+          "key": "bundle",
+          "type": "number",
+          "label": "Bundle size",
+          "integer": true,
+          "min": 1,
+          "default": 1,
+          "hint": "How many make one bundle (torches 3, arrows 20): slots are counted per started bundle"
+        },
+        {
+          "key": "costValue",
+          "type": "number",
+          "label": "Cost",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costDenomination",
+          "type": "text",
+          "label": "Cost denomination",
+          "max": 20,
+          "default": "gp"
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": "State",
+          "options": [
+            {
+              "value": "readied",
+              "label": "Readied"
+            },
+            {
+              "value": "carried",
+              "label": "Stowed"
+            },
+            {
+              "value": "dropped",
+              "label": "Dropped"
+            }
+          ],
+          "default": "carried"
+        },
+        {
+          "key": "magic",
+          "type": "boolean",
+          "label": "Magic",
+          "default": false
+        },
+        {
+          "key": "material",
+          "type": "select",
+          "label": "Material",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "wood",
+              "label": "Wood"
+            },
+            {
+              "value": "metal",
+              "label": "Metal"
+            },
+            {
+              "value": "leather",
+              "label": "Leather"
+            },
+            {
+              "value": "cloth",
+              "label": "Cloth"
+            },
+            {
+              "value": "stone",
+              "label": "Stone"
+            },
+            {
+              "value": "glass",
+              "label": "Glass"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false,
+      "quantity": "quantity",
+      "contains": []
+    },
+    {
+      "name": "armor",
+      "category": "item",
+      "label": "Armor",
+      "labelPlural": "Armor",
+      "icon": "🛡",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identified",
+          "type": "boolean",
+          "label": "Identified",
+          "default": true
+        },
+        {
+          "key": "unidentifiedName",
+          "type": "text",
+          "label": "Unidentified name",
+          "max": 100
+        },
+        {
+          "key": "unidentifiedDescription",
+          "type": "markdown",
+          "label": "Unidentified description"
+        },
+        {
+          "key": "quantity",
+          "type": "number",
+          "label": "Quantity",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "label": "Weight",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costValue",
+          "type": "number",
+          "label": "Cost",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costDenomination",
+          "type": "text",
+          "label": "Cost denomination",
+          "max": 20,
+          "default": "gp"
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": "State",
+          "options": [
+            {
+              "value": "readied",
+              "label": "Readied"
+            },
+            {
+              "value": "carried",
+              "label": "Stowed"
+            },
+            {
+              "value": "dropped",
+              "label": "Dropped"
+            }
+          ],
+          "default": "carried"
+        },
+        {
+          "key": "magic",
+          "type": "boolean",
+          "label": "Magic",
+          "default": false
+        },
+        {
+          "key": "material",
+          "type": "select",
+          "label": "Material",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "wood",
+              "label": "Wood"
+            },
+            {
+              "value": "metal",
+              "label": "Metal"
+            },
+            {
+              "value": "leather",
+              "label": "Leather"
+            },
+            {
+              "value": "cloth",
+              "label": "Cloth"
+            },
+            {
+              "value": "stone",
+              "label": "Stone"
+            },
+            {
+              "value": "glass",
+              "label": "Glass"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "armorType",
+          "type": "select",
+          "label": "Type",
+          "options": [
+            {
+              "value": "armor",
+              "label": "Armor"
+            },
+            {
+              "value": "shield",
+              "label": "Shield"
+            }
+          ],
+          "default": "armor"
+        },
+        {
+          "key": "bulk",
+          "type": "select",
+          "label": "Bulk",
+          "options": [
+            {
+              "value": "auto",
+              "label": "By AC"
+            },
+            {
+              "value": "none",
+              "label": "None"
+            },
+            {
+              "value": "light",
+              "label": "Light"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "heavy",
+              "label": "Heavy"
+            }
+          ],
+          "default": "auto",
+          "hint": "Armour bulk for encumbrance and gear slots (light 1, medium 2, heavy 3). By AC: 12 or less light, 13-14 medium, 15+ heavy"
+        },
+        {
+          "key": "ac",
+          "type": "number",
+          "label": "AC",
+          "integer": true,
+          "min": 0,
+          "default": 10
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false,
+      "quantity": "quantity",
+      "contains": []
+    },
+    {
+      "name": "weapon",
+      "category": "item",
+      "label": "Weapon",
+      "labelPlural": "Weapons",
+      "icon": "🗡",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identified",
+          "type": "boolean",
+          "label": "Identified",
+          "default": true
+        },
+        {
+          "key": "unidentifiedName",
+          "type": "text",
+          "label": "Unidentified name",
+          "max": 100
+        },
+        {
+          "key": "unidentifiedDescription",
+          "type": "markdown",
+          "label": "Unidentified description"
+        },
+        {
+          "key": "quantity",
+          "type": "number",
+          "label": "Quantity",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "label": "Weight",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "slots",
+          "type": "number",
+          "label": "Gear slots",
+          "min": 0,
+          "default": 1,
+          "hint": "Gear slots per bundle (Dolmenwood slot encumbrance): 1 for most things, 2 for bulky or two-handed, 0 for tiny"
+        },
+        {
+          "key": "bundle",
+          "type": "number",
+          "label": "Bundle size",
+          "integer": true,
+          "min": 1,
+          "default": 1,
+          "hint": "How many make one bundle (torches 3, arrows 20): slots are counted per started bundle"
+        },
+        {
+          "key": "costValue",
+          "type": "number",
+          "label": "Cost",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costDenomination",
+          "type": "text",
+          "label": "Cost denomination",
+          "max": 20,
+          "default": "gp"
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": "State",
+          "options": [
+            {
+              "value": "readied",
+              "label": "Readied"
+            },
+            {
+              "value": "carried",
+              "label": "Stowed"
+            },
+            {
+              "value": "dropped",
+              "label": "Dropped"
+            }
+          ],
+          "default": "carried"
+        },
+        {
+          "key": "magic",
+          "type": "boolean",
+          "label": "Magic",
+          "default": false
+        },
+        {
+          "key": "material",
+          "type": "select",
+          "label": "Material",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "wood",
+              "label": "Wood"
+            },
+            {
+              "value": "metal",
+              "label": "Metal"
+            },
+            {
+              "value": "leather",
+              "label": "Leather"
+            },
+            {
+              "value": "cloth",
+              "label": "Cloth"
+            },
+            {
+              "value": "stone",
+              "label": "Stone"
+            },
+            {
+              "value": "glass",
+              "label": "Glass"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "qualities",
+          "type": "group",
+          "label": "Qualities",
+          "fields": [
+            {
+              "key": "melee",
+              "type": "boolean",
+              "label": "Melee",
+              "default": false
+            },
+            {
+              "key": "twoHanded",
+              "type": "boolean",
+              "label": "Two-Handed",
+              "default": false
+            },
+            {
+              "key": "thrown",
+              "type": "boolean",
+              "label": "Thrown",
+              "default": false
+            },
+            {
+              "key": "missile",
+              "type": "boolean",
+              "label": "Missile",
+              "default": false
+            }
+          ]
+        },
+        {
+          "key": "favorite",
+          "type": "boolean",
+          "label": "Favorite",
+          "default": false
+        },
+        {
+          "key": "attackBonus",
+          "type": "number",
+          "label": "Attack bonus",
+          "integer": true,
+          "default": 0
+        },
+        {
+          "key": "damageBonus",
+          "type": "number",
+          "label": "Damage bonus",
+          "integer": true,
+          "default": 0
+        },
+        {
+          "key": "melee",
+          "type": "group",
+          "label": "Melee",
+          "fields": [
+            {
+              "key": "length",
+              "type": "number",
+              "label": "Length",
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "speed",
+              "type": "number",
+              "label": "Speed",
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "damage",
+              "type": "text",
+              "label": "Damage",
+              "max": 60
+            }
+          ]
+        },
+        {
+          "key": "missile",
+          "type": "group",
+          "label": "Missile",
+          "fields": [
+            {
+              "key": "weaponId",
+              "type": "text",
+              "label": "Weapon ID",
+              "max": 60
+            },
+            {
+              "key": "rangeShort",
+              "type": "number",
+              "label": "Short",
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "rangeMedium",
+              "type": "number",
+              "label": "Medium",
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "rangeLong",
+              "type": "number",
+              "label": "Long",
+              "min": 0,
+              "default": 0
+            }
+          ]
+        },
+        {
+          "key": "selectedAmmo",
+          "type": "text",
+          "label": "Active ammo",
+          "max": 64
+        },
+        {
+          "key": "selectedMode",
+          "type": "text",
+          "label": "Attack mode",
+          "max": 20
+        },
+        {
+          "key": "thrown",
+          "type": "group",
+          "label": "Thrown",
+          "fields": [
+            {
+              "key": "damage",
+              "type": "text",
+              "label": "Damage",
+              "max": 60
+            },
+            {
+              "key": "rangeShort",
+              "type": "number",
+              "label": "Short",
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "rangeMedium",
+              "type": "number",
+              "label": "Medium",
+              "min": 0,
+              "default": 0
+            },
+            {
+              "key": "rangeLong",
+              "type": "number",
+              "label": "Long",
+              "min": 0,
+              "default": 0
+            }
+          ]
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false,
+      "quantity": "quantity",
+      "contains": []
+    },
+    {
+      "name": "ammunition",
+      "category": "item",
+      "label": "Ammunition",
+      "labelPlural": "Ammunition",
+      "icon": "➶",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identified",
+          "type": "boolean",
+          "label": "Identified",
+          "default": true
+        },
+        {
+          "key": "unidentifiedName",
+          "type": "text",
+          "label": "Unidentified name",
+          "max": 100
+        },
+        {
+          "key": "unidentifiedDescription",
+          "type": "markdown",
+          "label": "Unidentified description"
+        },
+        {
+          "key": "quantity",
+          "type": "number",
+          "label": "Quantity",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "label": "Weight",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "slots",
+          "type": "number",
+          "label": "Gear slots",
+          "min": 0,
+          "default": 1,
+          "hint": "Gear slots per bundle (Dolmenwood slot encumbrance): 1 for most things, 2 for bulky or two-handed, 0 for tiny"
+        },
+        {
+          "key": "bundle",
+          "type": "number",
+          "label": "Bundle size",
+          "integer": true,
+          "min": 1,
+          "default": 1,
+          "hint": "How many make one bundle (torches 3, arrows 20): slots are counted per started bundle"
+        },
+        {
+          "key": "costValue",
+          "type": "number",
+          "label": "Cost",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costDenomination",
+          "type": "text",
+          "label": "Cost denomination",
+          "max": 20,
+          "default": "gp"
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": "State",
+          "options": [
+            {
+              "value": "readied",
+              "label": "Readied"
+            },
+            {
+              "value": "carried",
+              "label": "Stowed"
+            },
+            {
+              "value": "dropped",
+              "label": "Dropped"
+            }
+          ],
+          "default": "carried"
+        },
+        {
+          "key": "magic",
+          "type": "boolean",
+          "label": "Magic",
+          "default": false
+        },
+        {
+          "key": "material",
+          "type": "select",
+          "label": "Material",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "wood",
+              "label": "Wood"
+            },
+            {
+              "value": "metal",
+              "label": "Metal"
+            },
+            {
+              "value": "leather",
+              "label": "Leather"
+            },
+            {
+              "value": "cloth",
+              "label": "Cloth"
+            },
+            {
+              "value": "stone",
+              "label": "Stone"
+            },
+            {
+              "value": "glass",
+              "label": "Glass"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "recoverability",
+          "type": "select",
+          "label": "Recoverability",
+          "options": [
+            {
+              "value": "na",
+              "label": "N/A"
+            },
+            {
+              "value": "half",
+              "label": "50%"
+            },
+            {
+              "value": "full",
+              "label": "100%"
+            }
+          ],
+          "default": "half"
+        },
+        {
+          "key": "attackBonus",
+          "type": "number",
+          "label": "Attack bonus",
+          "integer": true,
+          "default": 0
+        },
+        {
+          "key": "damageBonus",
+          "type": "number",
+          "label": "Damage bonus",
+          "integer": true,
+          "default": 0
+        },
+        {
+          "key": "weaponDamages",
+          "type": "list",
+          "label": "Compatible weapons",
+          "fields": [
+            {
+              "key": "weaponId",
+              "type": "text",
+              "label": "Weapon ID",
+              "max": 60
+            },
+            {
+              "key": "damage",
+              "type": "text",
+              "label": "Damage",
+              "max": 60
+            }
+          ],
+          "maxRows": 30
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false,
+      "quantity": "quantity",
+      "contains": []
+    },
+    {
+      "name": "container",
+      "category": "item",
+      "label": "Container",
+      "labelPlural": "Containers",
+      "icon": "👝",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identified",
+          "type": "boolean",
+          "label": "Identified",
+          "default": true
+        },
+        {
+          "key": "unidentifiedName",
+          "type": "text",
+          "label": "Unidentified name",
+          "max": 100
+        },
+        {
+          "key": "unidentifiedDescription",
+          "type": "markdown",
+          "label": "Unidentified description"
+        },
+        {
+          "key": "quantity",
+          "type": "number",
+          "label": "Quantity",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "label": "Weight",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costValue",
+          "type": "number",
+          "label": "Cost",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costDenomination",
+          "type": "text",
+          "label": "Cost denomination",
+          "max": 20,
+          "default": "gp"
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": "State",
+          "options": [
+            {
+              "value": "readied",
+              "label": "Readied"
+            },
+            {
+              "value": "carried",
+              "label": "Stowed"
+            },
+            {
+              "value": "dropped",
+              "label": "Dropped"
+            }
+          ],
+          "default": "carried"
+        },
+        {
+          "key": "magic",
+          "type": "boolean",
+          "label": "Magic",
+          "default": false
+        },
+        {
+          "key": "material",
+          "type": "select",
+          "label": "Material",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "wood",
+              "label": "Wood"
+            },
+            {
+              "value": "metal",
+              "label": "Metal"
+            },
+            {
+              "value": "leather",
+              "label": "Leather"
+            },
+            {
+              "value": "cloth",
+              "label": "Cloth"
+            },
+            {
+              "value": "stone",
+              "label": "Stone"
+            },
+            {
+              "value": "glass",
+              "label": "Glass"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "kind",
+          "type": "select",
+          "label": "Kind",
+          "options": [
+            {
+              "value": "generic",
+              "label": "Generic"
+            },
+            {
+              "value": "spellbook",
+              "label": "Spellbook"
+            }
+          ],
+          "default": "generic"
+        },
+        {
+          "key": "capacity",
+          "type": "number",
+          "label": "Capacity",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "weightReduction",
+          "type": "number",
+          "label": "Weight reduction (%)",
+          "integer": true,
+          "min": 0,
+          "max": 100,
+          "default": 0
+        },
+        {
+          "key": "slotCapacity",
+          "type": "number",
+          "label": "Slot capacity",
+          "integer": true,
+          "min": 0,
+          "default": 0,
+          "hint": "Gear slots it holds under slot encumbrance (backpack or sack 10; 0 = no limit)"
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false,
+      "quantity": "quantity",
+      "contains": [
+        "item"
+      ]
+    },
+    {
+      "name": "treasure",
+      "category": "item",
+      "label": "Treasure",
+      "labelPlural": "Treasure",
+      "icon": "💰",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identified",
+          "type": "boolean",
+          "label": "Identified",
+          "default": true
+        },
+        {
+          "key": "unidentifiedName",
+          "type": "text",
+          "label": "Unidentified name",
+          "max": 100
+        },
+        {
+          "key": "unidentifiedDescription",
+          "type": "markdown",
+          "label": "Unidentified description"
+        },
+        {
+          "key": "quantity",
+          "type": "number",
+          "label": "Quantity",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "label": "Weight",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "slots",
+          "type": "number",
+          "label": "Gear slots",
+          "min": 0,
+          "default": 1,
+          "hint": "Gear slots per bundle (Dolmenwood slot encumbrance): 1 for most things, 2 for bulky or two-handed, 0 for tiny"
+        },
+        {
+          "key": "bundle",
+          "type": "number",
+          "label": "Bundle size",
+          "integer": true,
+          "min": 1,
+          "default": 1,
+          "hint": "How many make one bundle (torches 3, arrows 20): slots are counted per started bundle"
+        },
+        {
+          "key": "costValue",
+          "type": "number",
+          "label": "Cost",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "costDenomination",
+          "type": "text",
+          "label": "Cost denomination",
+          "max": 20,
+          "default": "gp"
+        },
+        {
+          "key": "state",
+          "type": "select",
+          "label": "State",
+          "options": [
+            {
+              "value": "readied",
+              "label": "Readied"
+            },
+            {
+              "value": "carried",
+              "label": "Stowed"
+            },
+            {
+              "value": "dropped",
+              "label": "Dropped"
+            }
+          ],
+          "default": "carried"
+        },
+        {
+          "key": "magic",
+          "type": "boolean",
+          "label": "Magic",
+          "default": false
+        },
+        {
+          "key": "material",
+          "type": "select",
+          "label": "Material",
+          "options": [
+            {
+              "value": "",
+              "label": "—"
+            },
+            {
+              "value": "wood",
+              "label": "Wood"
+            },
+            {
+              "value": "metal",
+              "label": "Metal"
+            },
+            {
+              "value": "leather",
+              "label": "Leather"
+            },
+            {
+              "value": "cloth",
+              "label": "Cloth"
+            },
+            {
+              "value": "stone",
+              "label": "Stone"
+            },
+            {
+              "value": "glass",
+              "label": "Glass"
+            },
+            {
+              "value": "other",
+              "label": "Other"
+            }
+          ],
+          "default": ""
+        },
+        {
+          "key": "value",
+          "type": "number",
+          "label": "Value (each)",
+          "min": 0,
+          "default": 0
+        },
+        {
+          "key": "denomination",
+          "type": "text",
+          "label": "Denomination",
+          "max": 20,
+          "default": "gp"
+        },
+        {
+          "key": "coin",
+          "type": "boolean",
+          "label": "Coins",
+          "default": false
+        },
+        {
+          "key": "givesXp",
+          "type": "boolean",
+          "label": "Gives XP",
+          "default": true
+        },
+        {
+          "key": "xpAwarded",
+          "type": "boolean",
+          "label": "XP awarded",
+          "default": false
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false,
+      "quantity": "quantity",
+      "contains": []
+    },
+    {
+      "name": "spell",
+      "category": "item",
+      "label": "Spell",
+      "labelPlural": "Spells",
+      "icon": "🔮",
+      "image": "img",
+      "fields": [
+        {
+          "key": "img",
+          "type": "image",
+          "label": "Image",
+          "size": "small"
+        },
+        {
+          "key": "description",
+          "type": "markdown",
+          "label": "Description"
+        },
+        {
+          "key": "identified",
+          "type": "boolean",
+          "label": "Identified",
+          "default": true
+        },
+        {
+          "key": "unidentifiedName",
+          "type": "text",
+          "label": "Unidentified name",
+          "max": 100
+        },
+        {
+          "key": "unidentifiedDescription",
+          "type": "markdown",
+          "label": "Unidentified description"
+        },
+        {
+          "key": "identifier",
+          "type": "text",
+          "label": "Identifier",
+          "max": 60
+        },
+        {
+          "key": "sources",
+          "type": "tags",
+          "label": "Sources"
+        },
+        {
+          "key": "tags",
+          "type": "tags",
+          "label": "Schools / spheres"
+        },
+        {
+          "key": "level",
+          "type": "number",
+          "label": "Level",
+          "integer": true,
+          "min": 1,
+          "default": 1
+        },
+        {
+          "key": "castingTimeValue",
+          "type": "number",
+          "label": "Casting time",
+          "integer": true,
+          "min": 0,
+          "default": 1
+        },
+        {
+          "key": "castingTimeUnit",
+          "type": "select",
+          "label": "Casting time unit",
+          "options": [
+            {
+              "value": "segment",
+              "label": "Segment"
+            },
+            {
+              "value": "round",
+              "label": "Round"
+            },
+            {
+              "value": "turn",
+              "label": "Turn"
+            },
+            {
+              "value": "extended",
+              "label": "Extended"
+            }
+          ],
+          "default": "round"
+        },
+        {
+          "key": "effectsOn",
+          "type": "boolean",
+          "label": "Effects apply",
+          "default": true,
+          "hint": "Its effects apply to whoever holds it"
+        }
+      ],
+      "equipped": {
+        "field": "effectsOn"
+      },
+      "effectsTab": false
+    }
+  ],
+  "chat": {
+    "styles": "ui/chat.css"
+  },
+  "embeds": [
+    {
+      "name": "attack",
+      "does": "action",
+      "action": "embed-attack",
+      "target": "optional",
+      "label": "Attack",
+      "args": {
+        "mode": "{target}",
+        "modifier": "{modifier}"
+      },
+      "options": [
+        {
+          "key": "modifier",
+          "type": "number",
+          "default": 0
+        }
+      ],
+      "card": {
+        "label": "{label}"
+      }
+    },
+    {
+      "name": "damage",
+      "does": "action",
+      "action": "embed-damage",
+      "label": "Damage ({target})",
+      "args": {
+        "formula": "{target}",
+        "type": "{type}"
+      },
+      "options": [
+        {
+          "key": "type",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "card": {
+        "label": "{label}"
+      }
+    },
+    {
+      "name": "heal",
+      "does": "action",
+      "action": "embed-heal",
+      "label": "Heal ({target})",
+      "args": {
+        "formula": "{target}"
+      },
+      "card": {
+        "label": "{label}"
+      }
+    },
+    {
+      "name": "save",
+      "does": "action",
+      "action": "embed-save",
+      "label": "Save vs {target}",
+      "args": {
+        "save": "{target}",
+        "bonus": "{bonus}"
+      },
+      "options": [
+        {
+          "key": "bonus",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "card": {
+        "label": "{label}"
+      }
+    },
+    {
+      "name": "check",
+      "does": "action",
+      "action": "embed-check",
+      "label": "{target} check",
+      "args": {
+        "ability": "{target}",
+        "modifier": "{modifier}"
+      },
+      "options": [
+        {
+          "key": "modifier",
+          "type": "number",
+          "default": 0
+        }
+      ],
+      "card": {
+        "label": "{label}"
+      }
+    },
+    {
+      "name": "reaction",
+      "does": "action",
+      "action": "embed-reaction",
+      "target": "none",
+      "label": "Reaction roll",
+      "args": {
+        "modifier": "{modifier}"
+      },
+      "options": [
+        {
+          "key": "modifier",
+          "type": "number",
+          "default": 0
+        }
+      ],
+      "card": {
+        "label": "{label}"
+      }
+    },
+    {
+      "name": "morale",
+      "does": "action",
+      "action": "embed-morale",
+      "target": "none",
+      "label": "Morale check",
+      "args": {
+        "modifier": "{modifier}"
+      },
+      "options": [
+        {
+          "key": "modifier",
+          "type": "number",
+          "default": 0
+        }
+      ],
+      "card": {
+        "label": "{label}"
+      }
+    },
+    {
+      "name": "refresh",
+      "does": "action",
+      "action": "embed-refresh",
+      "label": "A {target} passes",
+      "args": {
+        "period": "{target}",
+        "count": "{count}"
+      },
+      "options": [
+        {
+          "key": "count",
+          "type": "number",
+          "default": 1
+        }
+      ]
+    },
+    {
+      "name": "xp",
+      "does": "action",
+      "action": "embed-xp",
+      "label": "{target} XP",
+      "args": {
+        "amount": "{target}",
+        "label": "{reason}"
+      },
+      "options": [
+        {
+          "key": "reason",
+          "type": "text",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "name": "charlevel",
+      "target": "none",
+      "does": "value",
+      "path": "derived.level"
+    },
+    {
+      "name": "ac",
+      "target": "none",
+      "does": "value",
+      "path": "derived.ac.value"
+    },
+    {
+      "name": "hp",
+      "target": "none",
+      "does": "value",
+      "path": "hp.value"
+    },
+    {
+      "name": "str",
+      "target": "none",
+      "does": "value",
+      "path": "derived.abilities.str.mod",
+      "format": "signed"
+    },
+    {
+      "name": "int",
+      "target": "none",
+      "does": "value",
+      "path": "derived.abilities.int.mod",
+      "format": "signed"
+    },
+    {
+      "name": "wis",
+      "target": "none",
+      "does": "value",
+      "path": "derived.abilities.wis.mod",
+      "format": "signed"
+    },
+    {
+      "name": "dex",
+      "target": "none",
+      "does": "value",
+      "path": "derived.abilities.dex.mod",
+      "format": "signed"
+    },
+    {
+      "name": "con",
+      "target": "none",
+      "does": "value",
+      "path": "derived.abilities.con.mod",
+      "format": "signed"
+    },
+    {
+      "name": "cha",
+      "target": "none",
+      "does": "value",
+      "path": "derived.abilities.cha.mod",
+      "format": "signed"
+    }
+  ],
+  "embedDocs": "docs/embeds.json",
+  "documentation": [
+    {
+      "id": "guide",
+      "label": "OSR",
+      "file": "docs/guide.md"
+    }
+  ],
+  "settingsPage": "ui/homebrew.html"
+}

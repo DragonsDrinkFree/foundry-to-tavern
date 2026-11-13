@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "id": "foundry-to-tavern",
+  "kind": "module",
+  "name": "Foundry Import",
+  "version": "0.1.0",
+  "description": "Converts compendiums exported from FoundryVTT (with mana's Compendium Importer) into campaign archives, folders and all, by a rules file that maps Foundry's types and fields onto your system's.",
+  "authors": ["bmgraves"],
+  "permissions": ["ui.widget:import"],
+  "store": {
+    "rules": { "read": "gm", "write": "gm" }
+  },
+  "widgets": [
+    {
+      "id": "import",
+      "label": "Foundry import",
+      "description": "Convert exported Foundry compendiums into an archive, by a rules file.",
+      "defaultEnabled": true,
+      "full": "ui/import.html"
+    }
+  ],
+  "exclude": ["reference", "Reference", "tools/**", "rules/**", "docs/**", "README.md", "package.json"]
+}

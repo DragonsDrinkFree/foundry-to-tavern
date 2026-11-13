@@ -1,0 +1,259 @@
+/* The Foundry import widget. Colours are the app's theme tokens, with fallbacks for a page opened on its own. */
+:root {
+  color-scheme: light dark;
+}
+[hidden] {
+  display: none !important;
+}
+html,
+body {
+  margin: 0;
+  background: var(--bg-main, #1e1d22);
+  color: var(--text, #ddd);
+  font: var(--font-size-md, 14px) / 1.45 var(--font-ui, system-ui, sans-serif);
+}
+main {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: var(--space-4, 16px);
+  display: grid;
+  gap: var(--space-3, 12px);
+}
+h1 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-strong, #fff);
+}
+h2 {
+  margin: 0 0 var(--space-2, 8px);
+  font-size: 15px;
+  color: var(--text-strong, #fff);
+}
+code {
+  font-size: 0.92em;
+}
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+.chip {
+  border: 1px solid var(--border, #444);
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--text-muted, #aaa);
+}
+.muted {
+  color: var(--text-muted, #aaa);
+}
+.small {
+  font-size: var(--font-size-sm, 12px);
+}
+.card {
+  background: var(--bg-raised, #2a2830);
+  border: 1px solid var(--border, #444);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+}
+.drop {
+  border: 2px dashed var(--border, #555);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  text-align: center;
+}
+.drop p {
+  margin: 4px 0;
+}
+.drop.over {
+  border-color: var(--accent, #c9a24a);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+.link {
+  color: var(--accent, #c9a24a);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2, 8px);
+  margin: var(--space-2, 8px) 0;
+}
+.row.end {
+  justify-content: flex-end;
+  align-items: center;
+}
+.field {
+  display: grid;
+  gap: 2px;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--text-muted, #aaa);
+}
+input,
+select,
+button {
+  font: inherit;
+  color: var(--text, #ddd);
+  background: var(--bg-input, #1a191e);
+  border: 1px solid var(--border, #444);
+  border-radius: var(--radius-sm, 4px);
+  padding: 4px 8px;
+}
+#archive-name {
+  min-width: 280px;
+}
+#saved {
+  min-width: 260px;
+}
+button {
+  cursor: pointer;
+  background: var(--bg-raised, #2a2830);
+}
+button:hover:not(:disabled) {
+  background: var(--bg-hover, #34313b);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent, #c9a24a);
+  color: var(--accent-contrast, #111);
+  border-color: transparent;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover, #d8b25a);
+}
+button.x {
+  border: none;
+  background: none;
+  padding: 0 4px;
+  color: var(--text-muted, #aaa);
+}
+.choice {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: var(--space-4, 16px);
+}
+.check {
+  display: block;
+  margin: var(--space-2, 8px) 0;
+}
+.banner {
+  margin: var(--space-2, 8px) 0 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm, 4px);
+  border-left: 3px solid;
+  background: var(--bg-input, rgba(0, 0, 0, 0.2));
+  white-space: pre-wrap;
+}
+.banner.danger {
+  border-color: var(--danger, #d05050);
+}
+.banner.warn {
+  border-color: var(--warn, #d0a040);
+}
+.banner.ok {
+  border-color: var(--ok, #50a060);
+}
+.info p {
+  margin: 4px 0;
+}
+.files {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.files li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2, 8px);
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border, #333);
+}
+.files li:last-child {
+  border-bottom: none;
+}
+.files .name {
+  font-weight: 600;
+}
+.files .meta {
+  color: var(--text-muted, #aaa);
+  font-size: var(--font-size-sm, 12px);
+  flex: 1;
+}
+.extras {
+  margin-top: var(--space-2, 8px);
+}
+.kind {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint, #888);
+  min-width: 58px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--font-size-sm, 13px);
+}
+th,
+td {
+  text-align: left;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border, #333);
+  vertical-align: top;
+}
+th {
+  color: var(--text-muted, #aaa);
+  font-weight: 600;
+}
+td.n,
+th.n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+details {
+  margin-top: var(--space-2, 8px);
+}
+summary {
+  cursor: pointer;
+  color: var(--text-strong, #fff);
+}
+.tree,
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 16px;
+}
+.tree {
+  padding-left: 4px;
+  max-height: 320px;
+  overflow: auto;
+  font-size: var(--font-size-sm, 13px);
+}
+.tree .count {
+  color: var(--text-muted, #aaa);
+}
+.note {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--border, #555);
+}
+.note.warning {
+  border-color: var(--warn, #d0a040);
+}
+.note.error {
+  border-color: var(--danger, #d05050);
+}
+.note .examples {
+  color: var(--text-muted, #aaa);
+  font-size: var(--font-size-sm, 12px);
+  margin: 2px 0 0;
+  padding-left: 18px;
+}

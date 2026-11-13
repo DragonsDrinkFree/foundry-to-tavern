@@ -1,0 +1,1050 @@
+{
+  "format": "foundry-to-tavern/rules",
+  "version": 1,
+  "id": "dolmenwood-to-osr",
+  "name": "Dolmenwood → OSR",
+  "description": "Dolmenwood's Foundry packs (equipment, player options, classes, kindreds, creatures, journals) as the OSR system's Whiterook-style documents. Load Dolmenwood's lang files (en.json, en-traits.json, en-classes.json, en-kindreds.json) with the export so class and kindred traits get their names.",
+  "authors": ["foundry-to-tavern"],
+  "source": { "systems": ["dolmenwood"] },
+  "target": { "system": "osr" },
+  "options": { "folders": "all" },
+  "tables": {
+    "runeLevels": { "lesser": 1, "greater": 2, "mighty": 3 },
+    "saveLabels": { "doom": "Doom", "ray": "Ray", "hold": "Hold", "blast": "Blast", "spell": "Spell" }
+  },
+  "partials": {
+    "physical": {
+      "data": {
+        "identified": true,
+        "quantity": ["$system.quantity", "int", { "default": 1 }, { "atLeast": 0 }],
+        "weight": ["$system.weightCoins", "number", { "default": 0 }, { "atLeast": 0 }, { "div": 10 }, { "round": 2 }],
+        "costValue": ["$system.cost", "number", { "default": 0 }, { "atLeast": 0 }],
+        "costDenomination": ["$system.costDenomination", { "oneOf": ["cp", "sp", "gp", "pp"], "else": "gp" }],
+        "state": { "if": "$system.equipped", "then": "readied", "else": "carried" },
+        "description": ["$system.notes", "markdown"]
+      }
+    },
+    "slotted": {
+      "data": {
+        "slots": { "if": ["$system.weightSlots", { "gt": 0 }], "then": ["$system.weightSlots", "number"], "else": 1 },
+        "bundle": ["$system.stackSize", "int", { "default": 1 }, { "atLeast": 1 }]
+      }
+    },
+    "spell": {
+      "type": "osr.spell",
+      "data": {
+        "identified": true,
+        "level": ["$system.rank", "int", { "default": 1 }, { "atLeast": 1 }],
+        "tags": { "value": [] },
+        "castingTimeValue": 1,
+        "castingTimeUnit": "round"
+      }
+    },
+    "trait": {
+      "type": "osr.ability",
+      "name": [{ "coalesce": [["$trait.nameKey", "lang"], ["$trait.id", "humanize"]] }, { "truncate": 100 }],
+      "vars": {
+        "group": ["$group", "humanize"],
+        "uses": ["$trait.maxUses", "int", { "default": 0 }, { "atLeast": 0 }],
+        "usage": {
+          "coalesce": [["$trait.usageFrequency", "lang"], ["$trait.usageFrequency", { "split": "." }, "last", "humanize"]]
+        },
+        "daily": ["$:usage", { "test": ["day", "i"] }]
+      },
+      "data": {
+        "category": ["{{~.name}} ({{:group}})", { "truncate": 60 }],
+        "activation": ["$trait.traitType", { "eq": "active" }, { "then": "active", "else": "passive" }],
+        "resolution": { "if": "$trait.rollFormula", "then": "formula", "else": "none" },
+        "formula": ["$trait.rollFormula", { "default": "" }, "string", { "truncate": 100 }],
+        "uses.max": "$:uses",
+        "uses.value": "$:uses",
+        "uses.period": { "if": "$:uses", "then": { "if": "$:daily", "then": "day", "else": "custom" }, "else": "" },
+        "uses.customLabel": {
+          "if": { "all": ["$:uses", { "not": "$:daily" }] },
+          "then": ["$:usage", { "default": "" }, { "truncate": 60 }],
+          "else": ""
+        },
+        "description": { "coalesce": [["$trait.descKey", "lang", "markdown"], ["$:usage", { "prefix": "Usage: " }]] }
+      }
+    },
+    "traits": {
+      "extra": [
+        {
+          "from": [
+            {
+              "map": "$system.traits",
+              "to": { "map": "$value", "to": { "object": { "group": "$^.key", "trait": "$" } } }
+            },
+            "flatten"
+          ],
+          "place": "beside",
+          "use": "trait"
+        }
+      ]
+    }
+  },
+  "types": {
+    "Item": { "type": "osr.item", "use": ["physical", "slotted"] },
+    "Foraged": {
+      "type": "osr.item",
+      "use": ["physical", "slotted"],
+      "vars": {
+        "kind": ["$system.type", { "default": "plant" }],
+        "chance": ["$system.availability", "int", { "default": 6 }]
+      },
+      "data": {
+        "description": {
+          "join": [
+            ["$system.notes", "markdown"],
+            ["$system.effects", "markdown", "nullIfEmpty", { "prefix": "**Effect:** " }],
+            "**Foraged** ({{:kind}}), availability {{:chance}}-in-6."
+          ],
+          "sep": "\n\n"
+        }
+      }
+    },
+    "Container": {
+      "type": "osr.container",
+      "use": "physical",
+      "data": {
+        "kind": "generic",
+        "capacity": {
+          "if": "$system.infiniteCapacity",
+          "then": 0,
+          "else": [
+            "$system.capacityCoins",
+            "number",
+            { "default": 0 },
+            { "atLeast": 0 },
+            { "div": 10 },
+            { "round": 2 }
+          ]
+        },
+        "weightReduction": { "if": "$system.ignoreEncumbrance", "then": 100, "else": 0 },
+        "slotCapacity": {
+          "if": "$system.infiniteCapacity",
+          "then": 0,
+          "else": ["$system.capacitySlots", "int", { "default": 10 }, { "atLeast": 0 }]
+        }
+      }
+    },
+    "Weapon": {
+      "type": "osr.weapon",
+      "use": ["physical", "slotted"],
+      "vars": {
+        "quals": {
+          "if": ["$system.qualities", "present"],
+          "then": "$system.qualities",
+          "else": { "value": ["melee"] }
+        },
+        "missile": ["$:quals", { "includes": "missile" }],
+        "melee": { "any": [["$:quals", { "includes": "melee" }], { "not": "$:missile" }] }
+      },
+      "data": {
+        "qualities.melee": "$:melee",
+        "qualities.twoHanded": false,
+        "qualities.thrown": false,
+        "qualities.missile": "$:missile",
+        "attackBonus": ["$system.toHitBonus", "int", { "default": 0 }],
+        "damageBonus": 0,
+        "melee.length": 0,
+        "melee.speed": 0,
+        "melee.damage": { "if": "$:melee", "then": ["$system.damage", { "default": "1d6" }, { "truncate": 60 }], "else": "" },
+        "missile.weaponId": {
+          "if": "$:missile",
+          "then": [{ "coalesce": ["$system.weaponType", "$name"] }, { "truncate": 60 }],
+          "else": ""
+        },
+        "missile.rangeShort": ["$system.rangeShort", "number", { "default": 0 }, { "atLeast": 0 }],
+        "missile.rangeMedium": ["$system.rangeMedium", "number", { "default": 0 }, { "atLeast": 0 }],
+        "missile.rangeLong": ["$system.rangeLong", "number", { "default": 0 }, { "atLeast": 0 }],
+        "description": {
+          "join": [
+            ["$system.notes", "markdown"],
+            {
+              "if": { "all": ["$:missile", "$system.damage"] },
+              "then": "**Damage:** {{system.damage}} (from its ammunition in this system)"
+            }
+          ],
+          "sep": "\n\n"
+        }
+      }
+    },
+    "Armor": {
+      "type": "osr.armor",
+      "use": "physical",
+      "data": {
+        "armorType": ["$system.armorType", { "eq": "shield" }, { "then": "shield", "else": "armor" }],
+        "ac": ["$system.ac", "int", { "default": 10 }, { "atLeast": 0 }],
+        "bulk": ["$system.bulk", { "oneOf": ["none", "light", "medium", "heavy"], "else": "auto" }]
+      }
+    },
+    "Treasure": {
+      "type": "osr.treasure",
+      "use": ["physical", "slotted"],
+      "data": {
+        "costValue": 0,
+        "value": ["$system.cost", "number", { "default": 0 }, { "atLeast": 0 }],
+        "denomination": ["$system.costDenomination", { "oneOf": ["cp", "sp", "gp", "pp"], "else": "gp" }],
+        "givesXp": true,
+        "xpAwarded": ["$system.banked", "boolean"],
+        "coin": false
+      }
+    },
+    "Spell": {
+      "use": "spell",
+      "data": {
+        "sources": { "value": ["arcane"] },
+        "description": {
+          "join": [
+            { "labels": [["Range", "$system.range"], ["Duration", "$system.duration"]] },
+            ["$system.description", "markdown"]
+          ],
+          "sep": "\n\n"
+        }
+      }
+    },
+    "HolySpell": {
+      "use": "spell",
+      "data": {
+        "sources": { "value": ["divine"] },
+        "description": {
+          "join": [
+            {
+              "labels": [["Range", "$system.range"], ["Duration", "$system.duration"], ["Prayer", "$system.prayerName"]]
+            },
+            ["$system.description", "markdown"]
+          ],
+          "sep": "\n\n"
+        }
+      }
+    },
+    "Rune": {
+      "use": "spell",
+      "vars": { "magnitude": ["$system.magnitude", { "oneOf": ["lesser", "greater", "mighty"], "else": "lesser" }] },
+      "data": {
+        "level": ["$:magnitude", { "lookup": "runeLevels" }],
+        "sources": { "value": ["fairy"] },
+        "description": {
+          "join": [["$:magnitude", "humanize", { "template": "**{{.}} rune**" }], ["$system.description", "markdown"]],
+          "sep": "\n\n"
+        }
+      }
+    },
+    "Glamour": {
+      "type": "osr.ability",
+      "data": {
+        "category": "Glamour",
+        "activation": ["$system.usageFrequency", { "test": ["always", "i"] }, { "then": "passive", "else": "active" }],
+        "resolution": "none",
+        "description": {
+          "join": [
+            {
+              "labels": [
+                ["Range", "$system.range"],
+                ["Duration", "$system.duration"],
+                ["Usage", "$system.usageFrequency"]
+              ]
+            },
+            ["$system.description", "markdown"]
+          ],
+          "sep": "\n\n"
+        }
+      }
+    },
+    "Kindred": {
+      "type": "osr.ancestry",
+      "use": "traits",
+      "data": {
+        "description": {
+          "labels": [
+            ["Size", ["$system.size", "humanize"]],
+            ["Type", ["$system.creatureType", "humanize"]],
+            ["Languages", ["$system.languages", { "each": "humanize" }, { "join": ", " }]],
+            ["Age", "$system.ageFormula"],
+            ["Lifespan", "$system.lifespanFormula"],
+            ["Height", "$system.heightFormula"],
+            ["Weight", "$system.weightFormula"]
+          ]
+        }
+      }
+    },
+    "Class": {
+      "type": "osr.class",
+      "use": "traits",
+      "vars": {
+        "xp": {
+          "if": {
+            "all": [
+              ["$system.xpThresholds", "length", { "gt": 15 }],
+              ["$system.xpThresholds", { "at": 0 }, { "eq": 0 }],
+              ["$system.xpThresholds", { "at": 1 }, { "eq": 0 }]
+            ]
+          },
+          "then": ["$system.xpThresholds", { "slice": [1] }],
+          "else": ["$system.xpThresholds", "array"]
+        },
+        "attack": {
+          "if": ["$system.attackProgression", "length", { "gt": 15 }],
+          "then": ["$system.attackProgression", { "slice": [1] }],
+          "else": ["$system.attackProgression", "array"]
+        },
+        "death": {
+          "if": ["$system.saveProgressions.doom", "length", { "gt": 15 }],
+          "then": ["$system.saveProgressions.doom", { "slice": [1] }],
+          "else": ["$system.saveProgressions.doom", "array"]
+        },
+        "ray": {
+          "if": ["$system.saveProgressions.ray", "length", { "gt": 15 }],
+          "then": ["$system.saveProgressions.ray", { "slice": [1] }],
+          "else": ["$system.saveProgressions.ray", "array"]
+        },
+        "hold": {
+          "if": ["$system.saveProgressions.hold", "length", { "gt": 15 }],
+          "then": ["$system.saveProgressions.hold", { "slice": [1] }],
+          "else": ["$system.saveProgressions.hold", "array"]
+        },
+        "breath": {
+          "if": ["$system.saveProgressions.blast", "length", { "gt": 15 }],
+          "then": ["$system.saveProgressions.blast", { "slice": [1] }],
+          "else": ["$system.saveProgressions.blast", "array"]
+        },
+        "spell": {
+          "if": ["$system.saveProgressions.spell", "length", { "gt": 15 }],
+          "then": ["$system.saveProgressions.spell", { "slice": [1] }],
+          "else": ["$system.saveProgressions.spell", "array"]
+        },
+        "count": [
+          {
+            "list": [
+              ["$:xp", "length"],
+              ["$:attack", "length"],
+              ["$:death", "length"],
+              ["$:ray", "length"],
+              ["$:hold", "length"],
+              ["$:breath", "length"],
+              ["$:spell", "length"],
+              1
+            ]
+          },
+          "largest"
+        ],
+        "slots": [
+          "$system.spellProgression",
+          "array",
+          { "each": [{ "each": ["int", { "default": 0 }, { "atLeast": 0 }] }] }
+        ]
+      },
+      "data": {
+        "hitDice": ["$system.hitDice.die", { "default": "d6" }, { "replace": ["^1d", "d", "i"] }],
+        "xp": 0,
+        "level": 1,
+        "active": true,
+        "levels": {
+          "map": {
+            "zip": {
+              "xp": "$:xp",
+              "attack": "$:attack",
+              "death": "$:death",
+              "ray": "$:ray",
+              "hold": "$:hold",
+              "breath": "$:breath",
+              "spell": "$:spell"
+            },
+            "length": "$:count"
+          },
+          "row": {
+            "xp": ["$xp", "int", { "default": 0 }, { "atLeast": 0 }],
+            "attack": ["$attack", "int", { "default": 0 }],
+            "death": ["$death", "int", { "default": 18 }, { "clamp": [0, 20] }],
+            "ray": ["$ray", "int", { "default": 18 }, { "clamp": [0, 20] }],
+            "hold": ["$hold", "int", { "default": 18 }, { "clamp": [0, 20] }],
+            "breath": ["$breath", "int", { "default": 18 }, { "clamp": [0, 20] }],
+            "spell": ["$spell", "int", { "default": 18 }, { "clamp": [0, 20] }]
+          }
+        },
+        "castings": {
+          "switch": "$system.spellType",
+          "cases": {
+            "arcane": {
+              "object": {
+                "main.method": "vancian-book",
+                "main.source": "arcane",
+                "main.progression.slots": "$:slots",
+                "main.progression.pool": { "value": [] },
+                "main.progression.maxLevel": { "value": [] },
+                "main.progression.known": { "value": [] }
+              }
+            },
+            "holy": {
+              "object": {
+                "main.method": "divine-prepared",
+                "main.source": "divine",
+                "main.progression.slots": "$:slots",
+                "main.progression.pool": { "value": [] },
+                "main.progression.maxLevel": { "value": [] },
+                "main.progression.known": { "value": [] }
+              }
+            },
+            "fairy": {
+              "object": {
+                "runes.name": "Fairy Runes",
+                "runes.method": "fairy-runes",
+                "runes.source": "fairy",
+                "runes.progression.slots": { "value": [] },
+                "runes.progression.pool": { "value": [] },
+                "runes.progression.maxLevel": { "value": [] },
+                "runes.progression.known": { "value": [] },
+                "runes.progression.uses": {
+                  "map": { "range": "$:count" },
+                  "to": {
+                    "list": [
+                      {
+                        "if": ["$", { "lt": 4 }],
+                        "then": 1,
+                        "else": { "if": ["$", { "lt": 9 }], "then": 2, "else": 3 }
+                      },
+                      1,
+                      1
+                    ]
+                  }
+                },
+                "runes.progression.refresh": {
+                  "map": { "range": "$:count" },
+                  "to": {
+                    "if": ["$", { "lt": 4 }],
+                    "then": { "value": ["day", "level", "ever"] },
+                    "else": {
+                      "if": ["$", { "lt": 9 }],
+                      "then": { "value": ["day", "week", "ever"] },
+                      "else": { "value": ["day", "day", "year"] }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": { "value": {} }
+        },
+        "description": {
+          "labels": [
+            ["Weapons", ["$system.weaponsProficiency", { "each": "humanize" }, { "join": ", " }]],
+            ["Armour", ["$system.armorProficiency", { "each": "humanize" }, { "join": ", " }]],
+            ["Prime abilities", ["$system.primeAbilities", { "each": "humanize" }, { "join": ", " }]],
+            ["Kindred", ["$system.requiredKindred", "humanize"]]
+          ]
+        }
+      },
+      "extra": [
+        {
+          "from": { "map": "$system.skillProgressions", "where": ["$value", "present"], "to": "$" },
+          "place": "beside",
+          "type": "osr.ability",
+          "name": ["$key", "humanize"],
+          "vars": {
+            "targets": [
+              {
+                "if": ["$value", "length", { "gt": 15 }],
+                "then": ["$value", { "slice": [1] }],
+                "else": "$value"
+              },
+              { "each": "int" }
+            ]
+          },
+          "data": {
+            "category": "{{~.name}} (Skills)",
+            "activation": "active",
+            "resolution": "target",
+            "formula": "1d6",
+            "comparison": "gte",
+            "target": ["$:targets", "first", "int", { "default": 6 }],
+            "description": ["$:targets", { "join": ", " }, { "prefix": "Target by level: " }]
+          }
+        }
+      ]
+    },
+    "Creature": {
+      "type": "osr.creature",
+      "data": {
+        "level": ["$system.level", "number", { "default": 1 }],
+        "hpDice": ["$system.hpDice", { "default": "1d8" }, "string", { "truncate": 20 }],
+        "hp.value": ["$system.hp.value", "number", { "default": 0 }, { "atLeast": 0 }],
+        "hp.max": ["$system.hp.max", "number", { "default": 1 }, { "atLeast": 1 }],
+        "ac": ["$system.ac", "int", { "default": 10 }],
+        "saves": {
+          "map": "$system.saves",
+          "row": {
+            "label": ["$key", { "lookup": "saveLabels", "else": ["$key", "humanize"] }],
+            "target": ["$value", "int", { "default": 14 }, { "clamp": [1, 30] }]
+          }
+        },
+        "morale": ["$system.morale", "int", { "default": 7 }, { "clamp": [2, 12] }],
+        "xpAward": ["$system.xpAward", "int", { "default": 0 }, { "atLeast": 0 }],
+        "size": ["$system.size", { "oneOf": ["small", "medium", "large"], "else": "medium" }],
+        "monsterType": ["$system.monsterType", "string", { "truncate": 40 }],
+        "intelligence": ["$system.intelligence", "string", { "truncate": 40 }],
+        "alignment": ["$system.alignment", "string", { "truncate": 40 }],
+        "attacks": {
+          "map": "$system.attacks",
+          "row": {
+            "attackName": ["$attackName", "string", { "truncate": 80 }],
+            "numAttacks": ["$numAttacks", "int", { "default": 1 }, { "atLeast": 1 }],
+            "attackBonus": ["$attackBonus", "int", { "default": 0 }],
+            "attackDamage": ["$attackDamage", "string", { "truncate": 40 }],
+            "attackEffect": ["$attackEffect", "string", { "truncate": 80 }],
+            "attackType": ["$attackType", { "oneOf": ["attack", "breath", "spell", "other"], "else": "other" }],
+            "rangeShort": ["$rangeShort", "int", { "default": 0 }, { "atLeast": 0 }],
+            "rangeMedium": ["$rangeMedium", "int", { "default": 0 }, { "atLeast": 0 }],
+            "rangeLong": ["$rangeLong", "int", { "default": 0 }, { "atLeast": 0 }],
+            "attackGroup": ["$attackGroup", "string", { "truncate": 40 }]
+          }
+        },
+        "specialAbilities": {
+          "map": "$system.specialAbilities",
+          "row": {
+            "name": ["$name", "string", { "truncate": 80 }],
+            "description": ["$description", "fixDoubled", "markdown"]
+          }
+        },
+        "encounters": ["$system.encounters", "string", { "truncate": 40 }],
+        "lairChance": ["$system.lairChance", "int", { "default": 0 }, { "clamp": [0, 100] }],
+        "behaviour": ["$system.behaviour", "fixDoubled", "markdown"],
+        "speech": ["$system.speech", "fixDoubled", "string", { "truncate": 200 }],
+        "possessions": ["$system.possessions", "fixDoubled", "string", { "truncate": 200 }],
+        "treasureType": ["$system.treasureType", "string", { "truncate": 60 }],
+        "movement.base": ["$system.speed", "number", { "default": 0 }, { "mul": 3 }, { "atLeast": 0 }],
+        "movement.travelPoints": 0,
+        "notes": ["$system.description", "markdown"]
+      }
+    },
+    "JournalEntry": [
+      {
+        "when": ["$pages", { "where": [{ "get": "type" }, { "eq": "text" }] }, "length", { "gt": 1 }],
+        "type": "core.folder",
+        "extra": [
+          {
+            "from": ["$pages", { "where": [{ "get": "type" }, { "eq": "text" }] }],
+            "type": "core.note",
+            "data": { "body": ["$text.content", "markdown"] }
+          }
+        ]
+      },
+      {
+        "type": "core.note",
+        "data": {
+          "body": ["$pages", { "find": [{ "get": "type" }, { "eq": "text" }] }, { "get": "text.content" }, "markdown"]
+        }
+      }
+    ],
+    "*": { "skip": "no rule for this Foundry type in Dolmenwood → OSR" }
+  },
+  "schema": {
+    "osr.creature": {
+      "category": "actor",
+      "contains": ["item"],
+      "fields": [
+        { "key": "portrait", "type": "image" },
+        { "key": "level", "type": "number", "min": 0, "default": 1 },
+        { "key": "hpDice", "type": "text", "max": 20, "default": "1d8" },
+        { "key": "hp", "type": "resource", "default": 4 },
+        { "key": "ac", "type": "number", "integer": true, "default": 10 },
+        {
+          "key": "saves",
+          "type": "list",
+          "maxRows": 12,
+          "fields": [
+            { "key": "label", "type": "text", "max": 40 },
+            { "key": "target", "type": "number", "integer": true, "min": 1, "max": 30, "default": 14 }
+          ]
+        },
+        { "key": "morale", "type": "number", "integer": true, "min": 2, "max": 12, "default": 7 },
+        { "key": "xpAward", "type": "number", "integer": true, "min": 0, "default": 0 },
+        {
+          "key": "size",
+          "type": "select",
+          "options": [{ "value": "small" }, { "value": "medium" }, { "value": "large" }],
+          "default": "medium"
+        },
+        { "key": "monsterType", "type": "text", "max": 40, "default": "mortal" },
+        { "key": "intelligence", "type": "text", "max": 40 },
+        { "key": "alignment", "type": "text", "max": 40 },
+        {
+          "key": "attacks",
+          "type": "list",
+          "maxRows": 20,
+          "fields": [
+            { "key": "attackName", "type": "text", "max": 80 },
+            { "key": "numAttacks", "type": "number", "integer": true, "min": 1, "default": 1 },
+            { "key": "attackBonus", "type": "number", "integer": true, "default": 0 },
+            { "key": "attackDamage", "type": "text", "max": 40, "default": "1d6" },
+            { "key": "attackEffect", "type": "text", "max": 80 },
+            {
+              "key": "attackType",
+              "type": "select",
+              "options": [{ "value": "attack" }, { "value": "breath" }, { "value": "spell" }, { "value": "other" }],
+              "default": "attack"
+            },
+            { "key": "rangeShort", "type": "number", "integer": true, "min": 0, "default": 0 },
+            { "key": "rangeMedium", "type": "number", "integer": true, "min": 0, "default": 0 },
+            { "key": "rangeLong", "type": "number", "integer": true, "min": 0, "default": 0 },
+            { "key": "attackGroup", "type": "text", "max": 40 }
+          ]
+        },
+        {
+          "key": "specialAbilities",
+          "type": "list",
+          "maxRows": 40,
+          "fields": [{ "key": "name", "type": "text", "max": 80 }, { "key": "description", "type": "markdown" }]
+        },
+        { "key": "encounters", "type": "text", "max": 40 },
+        { "key": "lairChance", "type": "number", "integer": true, "min": 0, "max": 100, "default": 0 },
+        { "key": "behaviour", "type": "markdown" },
+        { "key": "speech", "type": "text", "max": 200 },
+        { "key": "possessions", "type": "text", "max": 200 },
+        { "key": "treasureType", "type": "text", "max": 60 },
+        { "key": "mount", "type": "boolean" },
+        { "key": "carry", "type": "number", "integer": true, "min": 0, "default": 0 },
+        {
+          "key": "movement",
+          "type": "group",
+          "fields": [
+            { "key": "base", "type": "number", "integer": true, "min": 0, "default": 120 },
+            { "key": "travelPoints", "type": "number", "min": 0, "default": 0 }
+          ]
+        },
+        { "key": "notes", "type": "markdown" },
+        { "key": "gmNotes", "type": "markdown" }
+      ]
+    },
+    "osr.class": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "hitDice", "type": "text", "max": 40, "default": "d8" },
+        {
+          "key": "levels",
+          "type": "list",
+          "fields": [
+            { "key": "xp", "type": "number", "integer": true, "min": 0, "default": 0 },
+            { "key": "attack", "type": "number", "integer": true, "default": 0 },
+            { "key": "death", "type": "number", "integer": true, "min": 0, "max": 20, "default": 18 },
+            { "key": "ray", "type": "number", "integer": true, "min": 0, "max": 20, "default": 18 },
+            { "key": "hold", "type": "number", "integer": true, "min": 0, "max": 20, "default": 18 },
+            { "key": "breath", "type": "number", "integer": true, "min": 0, "max": 20, "default": 18 },
+            { "key": "spell", "type": "number", "integer": true, "min": 0, "max": 20, "default": 18 }
+          ],
+          "maxRows": 40
+        },
+        { "key": "xp", "type": "number", "integer": true, "min": 0, "default": 0 },
+        { "key": "level", "type": "number", "integer": true, "min": 0, "default": 1 },
+        { "key": "active", "type": "boolean", "default": true },
+        { "key": "castings", "type": "json", "max": 20000 },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.ancestry": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.ability": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "category", "type": "text", "max": 60 },
+        {
+          "key": "activation",
+          "type": "select",
+          "options": [{ "value": "passive" }, { "value": "active" }, { "value": "toggle" }],
+          "default": "passive"
+        },
+        { "key": "active", "type": "boolean", "default": false },
+        { "key": "favorite", "type": "boolean", "default": false },
+        {
+          "key": "resolution",
+          "type": "select",
+          "options": [{ "value": "none" }, { "value": "formula" }, { "value": "target" }, { "value": "save" }],
+          "default": "none"
+        },
+        { "key": "formula", "type": "text", "max": 100 },
+        { "key": "target", "type": "number", "integer": true, "default": 0 },
+        {
+          "key": "comparison",
+          "type": "select",
+          "options": [{ "value": "gte" }, { "value": "lte" }],
+          "default": "gte"
+        },
+        {
+          "key": "save",
+          "type": "select",
+          "options": [
+            { "value": "" },
+            { "value": "death" },
+            { "value": "ray" },
+            { "value": "hold" },
+            { "value": "breath" },
+            { "value": "spell" }
+          ],
+          "default": ""
+        },
+        {
+          "key": "modifier",
+          "type": "select",
+          "options": [
+            { "value": "" },
+            { "value": "str" },
+            { "value": "dex" },
+            { "value": "con" },
+            { "value": "int" },
+            { "value": "wis" },
+            { "value": "cha" }
+          ],
+          "default": ""
+        },
+        {
+          "key": "uses",
+          "type": "group",
+          "fields": [
+            { "key": "max", "type": "number", "integer": true, "min": 0, "default": 0 },
+            { "key": "value", "type": "number", "integer": true, "min": 0, "default": 0 },
+            {
+              "key": "period",
+              "type": "select",
+              "options": [
+                { "value": "" },
+                { "value": "turn" },
+                { "value": "hour" },
+                { "value": "day" },
+                { "value": "week" },
+                { "value": "year" },
+                { "value": "custom" }
+              ],
+              "default": ""
+            },
+            { "key": "customLabel", "type": "text", "max": 60 }
+          ]
+        },
+        {
+          "key": "costs",
+          "type": "list",
+          "fields": [
+            { "key": "slug", "type": "text", "max": 60 },
+            { "key": "amount", "type": "number", "integer": true, "min": 0, "default": 1 }
+          ],
+          "maxRows": 10
+        },
+        {
+          "key": "costMode",
+          "type": "select",
+          "options": [{ "value": "all" }, { "value": "choice" }],
+          "default": "all"
+        },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.item": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "identified", "type": "boolean", "default": true },
+        { "key": "unidentifiedName", "type": "text", "max": 100 },
+        { "key": "unidentifiedDescription", "type": "markdown" },
+        { "key": "quantity", "type": "number", "integer": true, "min": 0, "default": 1 },
+        { "key": "weight", "type": "number", "min": 0, "default": 0 },
+        { "key": "slots", "type": "number", "min": 0, "default": 1 },
+        { "key": "bundle", "type": "number", "integer": true, "min": 1, "default": 1 },
+        { "key": "costValue", "type": "number", "min": 0, "default": 0 },
+        { "key": "costDenomination", "type": "text", "max": 20, "default": "gp" },
+        {
+          "key": "state",
+          "type": "select",
+          "options": [{ "value": "readied" }, { "value": "carried" }, { "value": "dropped" }],
+          "default": "carried"
+        },
+        { "key": "magic", "type": "boolean", "default": false },
+        {
+          "key": "material",
+          "type": "select",
+          "options": [
+            { "value": "" },
+            { "value": "wood" },
+            { "value": "metal" },
+            { "value": "leather" },
+            { "value": "cloth" },
+            { "value": "stone" },
+            { "value": "glass" },
+            { "value": "other" }
+          ],
+          "default": ""
+        },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.armor": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "identified", "type": "boolean", "default": true },
+        { "key": "unidentifiedName", "type": "text", "max": 100 },
+        { "key": "unidentifiedDescription", "type": "markdown" },
+        { "key": "quantity", "type": "number", "integer": true, "min": 0, "default": 1 },
+        { "key": "weight", "type": "number", "min": 0, "default": 0 },
+        { "key": "costValue", "type": "number", "min": 0, "default": 0 },
+        { "key": "costDenomination", "type": "text", "max": 20, "default": "gp" },
+        {
+          "key": "state",
+          "type": "select",
+          "options": [{ "value": "readied" }, { "value": "carried" }, { "value": "dropped" }],
+          "default": "carried"
+        },
+        { "key": "magic", "type": "boolean", "default": false },
+        {
+          "key": "material",
+          "type": "select",
+          "options": [
+            { "value": "" },
+            { "value": "wood" },
+            { "value": "metal" },
+            { "value": "leather" },
+            { "value": "cloth" },
+            { "value": "stone" },
+            { "value": "glass" },
+            { "value": "other" }
+          ],
+          "default": ""
+        },
+        {
+          "key": "armorType",
+          "type": "select",
+          "options": [{ "value": "armor" }, { "value": "shield" }],
+          "default": "armor"
+        },
+        {
+          "key": "bulk",
+          "type": "select",
+          "options": [
+            { "value": "auto" },
+            { "value": "none" },
+            { "value": "light" },
+            { "value": "medium" },
+            { "value": "heavy" }
+          ],
+          "default": "auto"
+        },
+        { "key": "ac", "type": "number", "integer": true, "min": 0, "default": 10 },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.weapon": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "identified", "type": "boolean", "default": true },
+        { "key": "unidentifiedName", "type": "text", "max": 100 },
+        { "key": "unidentifiedDescription", "type": "markdown" },
+        { "key": "quantity", "type": "number", "integer": true, "min": 0, "default": 1 },
+        { "key": "weight", "type": "number", "min": 0, "default": 0 },
+        { "key": "slots", "type": "number", "min": 0, "default": 1 },
+        { "key": "bundle", "type": "number", "integer": true, "min": 1, "default": 1 },
+        { "key": "costValue", "type": "number", "min": 0, "default": 0 },
+        { "key": "costDenomination", "type": "text", "max": 20, "default": "gp" },
+        {
+          "key": "state",
+          "type": "select",
+          "options": [{ "value": "readied" }, { "value": "carried" }, { "value": "dropped" }],
+          "default": "carried"
+        },
+        { "key": "magic", "type": "boolean", "default": false },
+        {
+          "key": "material",
+          "type": "select",
+          "options": [
+            { "value": "" },
+            { "value": "wood" },
+            { "value": "metal" },
+            { "value": "leather" },
+            { "value": "cloth" },
+            { "value": "stone" },
+            { "value": "glass" },
+            { "value": "other" }
+          ],
+          "default": ""
+        },
+        {
+          "key": "qualities",
+          "type": "group",
+          "fields": [
+            { "key": "melee", "type": "boolean", "default": false },
+            { "key": "twoHanded", "type": "boolean", "default": false },
+            { "key": "thrown", "type": "boolean", "default": false },
+            { "key": "missile", "type": "boolean", "default": false }
+          ]
+        },
+        { "key": "favorite", "type": "boolean", "default": false },
+        { "key": "attackBonus", "type": "number", "integer": true, "default": 0 },
+        { "key": "damageBonus", "type": "number", "integer": true, "default": 0 },
+        {
+          "key": "melee",
+          "type": "group",
+          "fields": [
+            { "key": "length", "type": "number", "min": 0, "default": 0 },
+            { "key": "speed", "type": "number", "min": 0, "default": 0 },
+            { "key": "damage", "type": "text", "max": 60 }
+          ]
+        },
+        {
+          "key": "missile",
+          "type": "group",
+          "fields": [
+            { "key": "weaponId", "type": "text", "max": 60 },
+            { "key": "rangeShort", "type": "number", "min": 0, "default": 0 },
+            { "key": "rangeMedium", "type": "number", "min": 0, "default": 0 },
+            { "key": "rangeLong", "type": "number", "min": 0, "default": 0 }
+          ]
+        },
+        { "key": "selectedAmmo", "type": "text", "max": 64 },
+        { "key": "selectedMode", "type": "text", "max": 20 },
+        {
+          "key": "thrown",
+          "type": "group",
+          "fields": [
+            { "key": "damage", "type": "text", "max": 60 },
+            { "key": "rangeShort", "type": "number", "min": 0, "default": 0 },
+            { "key": "rangeMedium", "type": "number", "min": 0, "default": 0 },
+            { "key": "rangeLong", "type": "number", "min": 0, "default": 0 }
+          ]
+        },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.container": {
+      "category": "item",
+      "contains": ["item"],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "identified", "type": "boolean", "default": true },
+        { "key": "unidentifiedName", "type": "text", "max": 100 },
+        { "key": "unidentifiedDescription", "type": "markdown" },
+        { "key": "quantity", "type": "number", "integer": true, "min": 0, "default": 1 },
+        { "key": "weight", "type": "number", "min": 0, "default": 0 },
+        { "key": "costValue", "type": "number", "min": 0, "default": 0 },
+        { "key": "costDenomination", "type": "text", "max": 20, "default": "gp" },
+        {
+          "key": "state",
+          "type": "select",
+          "options": [{ "value": "readied" }, { "value": "carried" }, { "value": "dropped" }],
+          "default": "carried"
+        },
+        { "key": "magic", "type": "boolean", "default": false },
+        {
+          "key": "material",
+          "type": "select",
+          "options": [
+            { "value": "" },
+            { "value": "wood" },
+            { "value": "metal" },
+            { "value": "leather" },
+            { "value": "cloth" },
+            { "value": "stone" },
+            { "value": "glass" },
+            { "value": "other" }
+          ],
+          "default": ""
+        },
+        {
+          "key": "kind",
+          "type": "select",
+          "options": [{ "value": "generic" }, { "value": "spellbook" }],
+          "default": "generic"
+        },
+        { "key": "capacity", "type": "number", "min": 0, "default": 0 },
+        { "key": "weightReduction", "type": "number", "integer": true, "min": 0, "max": 100, "default": 0 },
+        { "key": "slotCapacity", "type": "number", "integer": true, "min": 0, "default": 0 },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.treasure": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "identified", "type": "boolean", "default": true },
+        { "key": "unidentifiedName", "type": "text", "max": 100 },
+        { "key": "unidentifiedDescription", "type": "markdown" },
+        { "key": "quantity", "type": "number", "integer": true, "min": 0, "default": 1 },
+        { "key": "weight", "type": "number", "min": 0, "default": 0 },
+        { "key": "slots", "type": "number", "min": 0, "default": 1 },
+        { "key": "bundle", "type": "number", "integer": true, "min": 1, "default": 1 },
+        { "key": "costValue", "type": "number", "min": 0, "default": 0 },
+        { "key": "costDenomination", "type": "text", "max": 20, "default": "gp" },
+        {
+          "key": "state",
+          "type": "select",
+          "options": [{ "value": "readied" }, { "value": "carried" }, { "value": "dropped" }],
+          "default": "carried"
+        },
+        { "key": "magic", "type": "boolean", "default": false },
+        {
+          "key": "material",
+          "type": "select",
+          "options": [
+            { "value": "" },
+            { "value": "wood" },
+            { "value": "metal" },
+            { "value": "leather" },
+            { "value": "cloth" },
+            { "value": "stone" },
+            { "value": "glass" },
+            { "value": "other" }
+          ],
+          "default": ""
+        },
+        { "key": "value", "type": "number", "min": 0, "default": 0 },
+        { "key": "denomination", "type": "text", "max": 20, "default": "gp" },
+        { "key": "coin", "type": "boolean", "default": false },
+        { "key": "givesXp", "type": "boolean", "default": true },
+        { "key": "xpAwarded", "type": "boolean", "default": false },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    },
+    "osr.spell": {
+      "category": "item",
+      "contains": [],
+      "fields": [
+        { "key": "img", "type": "image" },
+        { "key": "description", "type": "markdown" },
+        { "key": "identified", "type": "boolean", "default": true },
+        { "key": "unidentifiedName", "type": "text", "max": 100 },
+        { "key": "unidentifiedDescription", "type": "markdown" },
+        { "key": "identifier", "type": "text", "max": 60 },
+        { "key": "sources", "type": "tags" },
+        { "key": "tags", "type": "tags" },
+        { "key": "level", "type": "number", "integer": true, "min": 1, "default": 1 },
+        { "key": "castingTimeValue", "type": "number", "integer": true, "min": 0, "default": 1 },
+        {
+          "key": "castingTimeUnit",
+          "type": "select",
+          "options": [{ "value": "segment" }, { "value": "round" }, { "value": "turn" }, { "value": "extended" }],
+          "default": "round"
+        },
+        { "key": "effectsOn", "type": "boolean", "default": true }
+      ]
+    }
+  }
+}
