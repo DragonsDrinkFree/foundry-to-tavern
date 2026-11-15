@@ -67,7 +67,7 @@ const MOCK = `
       create: (input) => { __calls.push(['archives.create', { name: input.name, access: input.access, entries: input.entries }]); return ok('arc-new'); },
       add: (a, e) => { __calls.push(['archives.add', a, e.length]); return ok(e.map((x) => x.id)); },
     },
-    features: { has: (id) => ok(id === 'core.asset-upload') },
+    features: { has: (id) => ok(id === 'core.asset-upload' || id === 'core.import-refs') },
     assets: {
       // The first picture of each call is stored renamed, the second fails, the rest are stored (every other one "already there").
       uploadMany: (files, opts) => {

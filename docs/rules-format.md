@@ -305,6 +305,8 @@ expressions, so `{ "add": "$^.system.bonus" }` works.
   `[{ "coalesce": [["$nameKey", "lang"], ["$id", "humanize"]] }]`.
 - `asset` takes a Foundry file path and gives the campaign path the picture is uploaded to. See
   [Pictures](#pictures).
+- `ref` takes a Foundry `_id` and gives the id of the entry that document became in this import.
+  See [Links between documents](#links-between-documents).
 
 **Lookups:**
 
@@ -316,7 +318,8 @@ expressions, so `{ "add": "$^.system.bonus" }` works.
 **Lists:**
 
 - Picking: `length`, `first`, `last`, `{ "at": i }`, `{ "slice": [start, end] }`.
-- Reshaping: `compact`, `flatten`, `unique`, `reverse`, `sort`.
+- Reshaping: `compact`, `flatten`, `unique`, `reverse`, `sort`, and `{ "sortBy": "path" }` for a
+  list of objects (`{ "sortBy": "sort" }` puts Foundry pages in their order).
 - Objects: `keys`, `values`, and `entries` (which gives a list of `{ key, value }`).
 - Totals: `sum`, `largest`, `smallest`.
 - `{ "join": ", " }` joins the list into text.
@@ -333,6 +336,71 @@ expressions, so `{ "add": "$^.system.bonus" }` works.
 - `not`, `truthy`, `empty` and `present` check the value itself.
 - `{ "then": E, "else": E }` picks a value by the test before it:
   `["$system.type", { "eq": "shield" }, { "then": "shield", "else": "armor" }]`.
+
+## Adventures
+
+An Adventure compendium holds whole adventures, each a single Foundry document with its actors,
+items, journal entries, scenes, roll tables, macros, cards and playlists inside. The widget
+unpacks them before any rule runs:
+
+- **Everything inside** goes through the rules for its own type, as if it came from a compendium
+  of its own. A monster uses the `monster` rule, a journal entry the `JournalEntry` rule. Contents
+  without a `type` of their own are keyed by their Foundry document name: `JournalEntry`, `Scene`,
+  `RollTable`, `Macro`, `Cards`, `Playlist`, `Combat`.
+- **The adventure itself** is one more document, keyed `Adventure`, with its collections left out.
+  Its `name`, `img`, `caption` and `description` are there for a rule. The shipped rule sets make
+  it a note.
+- **Folders:** Foundry keeps an adventure's folders apart by document type, so an adventure often
+  has one folder of each name per type. An archive's folders aren't split by type, so folders with
+  the same name in the same place become one.
+
+## Journals as tomes
+
+A tome (`core.tome`, TM ADR 0104) is a note that holds notes as its pages. To bring a journal
+across as one, make the journal a `core.tome` and each page an extra `core.note` held by it:
+
+```json
+"JournalEntry": {
+  "type": "core.tome",
+  "extra": [{ "from": "$pages", "type": "core.note", "data": { "body": ["$text.content", "markdown"] } }]
+}
+```
+
+A tome's layout, its `sections` and `pages`, names its pages by id. Write the page ids with the
+`ref` transform (see [Links between documents](#links-between-documents)), and Foundry's categories
+as sections:
+
+```json
+"data": {
+  "sections": { "map": ["$categories", { "sortBy": "sort" }], "to": { "object": { "id": "$_id", "name": "$name" } } },
+  "pages": { "map": ["$pages", { "sortBy": "sort" }], "to": { "object": { "id": ["$_id", "ref"], "section": "$category" } } }
+}
+```
+
+Tavern Moot carries those ids through an import from ADR 0132 on (the `core.import-refs`
+feature). On an older server the widget drops the layout, and the tome shows its pages in their
+`sort` order, which each page takes from Foundry by default.
+
+The shipped rule sets do this for every journal with text or image pages:
+
+- a text page keeps its Markdown when Foundry wrote it as Markdown;
+- an image page shows its picture (`![name](path)`, through `asset`) and its caption;
+- PDF and video pages stay behind.
+
+## Links between documents
+
+Foundry text links documents with `@UUID[…]{Label}`. The `markdown` and `embeds` transforms keep
+each link, and once every entry is made, it becomes a Tavern Moot link to the entry its document
+became: `[[@<entry id>|Label]]`. This works across packs converted together. A link to a document
+that isn't in the import keeps only its label, and the preview lists those.
+
+The `ref` transform does the same for a field: `["$system.ownerId", "ref"]` gives the entry id of
+the Foundry document with that `_id`, or the `_id` unchanged if it isn't in the import. A system
+type with such a field should declare it in its `refs` (TM ADR 0132), so Tavern Moot remaps it on
+import.
+
+Both need a server with `core.import-refs`; the widget checks. Without it, links keep only their
+label, as they always did.
 
 ## Folders, ids and importing again
 

@@ -29,6 +29,7 @@ const state = {
   saved: {}, // key -> { name, savedAt, rules }
   system: null,
   isGm: true,
+  importRefs: false, // the server carries ids through an import (core.import-refs, TM ADR 0132)
   result: null,
   busy: false,
 };
@@ -295,7 +296,7 @@ function convertNow(stored = null) {
   const langs = [...(usesBundle() ? state.bundle.lang : []), ...state.lang];
   const lang = langs.length ? mergeLang(...langs.map((l) => l.json)) : undefined;
   const assets = usesBundle() ? { files: picturesOn() ? state.bundle.files : {}, left: Object.fromEntries(state.bundle.left.map((l) => [l.path, l.reason])), folder: assetFolder() ?? undefined, ...(stored ? { stored } : {}) } : undefined;
-  return convert(state.rules.compiled, sources(), { schema, lang, assets, wrap: $('wrap').checked });
+  return convert(state.rules.compiled, sources(), { schema, lang, assets, refs: state.importRefs, wrap: $('wrap').checked });
 }
 
 function runConversion() {
@@ -573,6 +574,7 @@ async function start() {
       const viewer = await api.viewer.get();
       state.isGm = viewer?.role === 'gm';
     } catch { state.isGm = false; }
+    try { state.importRefs = !!(await api.features.has('core.import-refs')); } catch { state.importRefs = false; }
     $('gm-only').hidden = state.isGm;
     await Promise.all([loadSaved(), loadArchives()]);
   }

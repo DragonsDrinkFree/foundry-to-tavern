@@ -238,25 +238,50 @@
     },
     "JournalEntry": [
       {
-        "when": ["$pages", { "where": [{ "get": "type" }, { "eq": "text" }] }, "length", { "gt": 1 }],
-        "type": "core.folder",
+        "when": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, "present"],
+        "type": "core.tome",
+        "data": {
+          "sections": { "map": ["$categories", { "sortBy": "sort" }], "to": { "object": { "id": "$_id", "name": ["$name", { "default": "Section" }] } } },
+          "pages": {
+            "map": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, { "sortBy": "sort" }],
+            "to": { "object": { "id": ["$_id", "ref"], "section": "$category" } }
+          }
+        },
         "extra": [
           {
-            "from": ["$pages", { "where": [{ "get": "type" }, { "eq": "text" }] }],
+            "from": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }],
             "type": "core.note",
-            "data": { "body": ["$text.content", "markdown"] }
+            "data": {
+              "body": {
+                "if": ["$type", { "eq": "image" }],
+                "then": {
+                  "join": [
+                    { "if": ["$src", "asset", "present"], "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$src", "asset"], ")"] } },
+                    ["$image.caption", "markdown"]
+                  ],
+                  "sep": "\n\n"
+                },
+                "else": { "if": ["$text.format", { "eq": 2 }], "then": "$text.markdown", "else": ["$text.content", "markdown"] }
+              }
+            }
           }
         ]
       },
-      {
-        "when": ["$pages", { "where": [{ "get": "type" }, { "eq": "text" }] }, "present"],
-        "type": "core.note",
-        "data": {
-          "body": ["$pages", { "find": [{ "get": "type" }, { "eq": "text" }] }, { "get": "text.content" }, "markdown"]
-        }
-      },
-      { "skip": "a journal entry with no text pages (only images or PDFs, which stay in Foundry)" }
+      { "skip": "a journal entry with no text or image pages (only PDFs or video, which stay in Foundry)" }
     ],
+    "Adventure": {
+      "type": "core.note",
+      "data": {
+        "body": {
+          "join": [
+            { "if": ["$img", "asset", "present"], "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$img", "asset"], ")"] } },
+            ["$caption", "markdown"],
+            ["$description", "markdown"]
+          ],
+          "sep": "\n\n"
+        }
+      }
+    },
     "*": { "skip": "no rule for this Foundry type in OSE → OSR" }
   },
   "schema": {

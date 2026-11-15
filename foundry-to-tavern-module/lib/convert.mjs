@@ -11,6 +11,7 @@
 import { compileExpr, compileMapping, RulesError, scopeFor, childScope, truthy } from './expr.mjs';
 import { canHold, CORE_TYPES, DOCUMENT_NAME_MAX, normalize } from './schema.mjs';
 import { compileAssets, filePath, isImage, selected, targetPath } from './assets.mjs';
+import { LINK_RE, REF_RE } from './text.mjs';
 
 export { RulesError } from './expr.mjs';
 
@@ -168,12 +169,62 @@ const asStrings = (v) => (v == null ? [] : (Array.isArray(v) ? v : [v]).map(Stri
 export function readExport(json, fileName = '') {
   if (!isObject(json)) throw new Error('not a JSON object');
   const isPack = Array.isArray(json.items) && (json.metadata || json.package || json.folders || json.type);
-  const docs = isPack ? json.items : [json];
+  let docs = (isPack ? json.items : [json]).filter(isObject);
   const kind = isPack ? json.type ?? json.metadata?.type ?? null : json.pages ? 'JournalEntry' : json.prototypeToken ? 'Actor' : json.type ? 'Item' : null;
   const system = json.source?.system ?? json.metadata?.system ?? docs.find((d) => d?._stats?.systemId)?._stats?.systemId ?? null;
   const label = String(json.metadata?.label ?? (isPack ? json.metadata?.name ?? json.package : json.name) ?? fileName.replace(/\.json$/i, '') ?? 'Import').trim() || 'Import';
   const key = json.metadata?.id ?? json.package ?? (isPack ? null : json._id) ?? fileName.replace(/\.json$/i, '');
-  return { label, key: String(key || label), system, kind, docs: docs.filter(isObject), folders: Array.isArray(json.folders) ? json.folders.filter(isObject) : [], isPack };
+  let folders = Array.isArray(json.folders) ? json.folders.filter(isObject) : [];
+  /** Each document's Foundry document name, where the pack's kind doesn't say it (adventures). */
+  const kinds = new Map();
+  if (kind === 'Adventure') ({ docs, folders } = unpackAdventures(docs, folders, kinds));
+  return { label, key: String(key || label), system, kind, docs, folders, isPack, kinds };
+}
+
+/** An adventure's collections, and the Foundry document name of what each holds. */
+const ADVENTURE_CONTENTS = {
+  journal: 'JournalEntry', actors: 'Actor', items: 'Item', scenes: 'Scene', tables: 'RollTable',
+  macros: 'Macro', cards: 'Cards', playlists: 'Playlist', combats: 'Combat',
+};
+
+/**
+ * Adventures unpacked: each adventure (kind "Adventure", its collections left out) and then
+ * everything in it, as if from packs of their own, so each goes through the rules for its type.
+ * An adventure's folders are kept separate by document type in Foundry; an archive's aren't, so
+ * folders with the same name in the same place become one.
+ */
+function unpackAdventures(adventures, packFolders, kinds) {
+  const docs = [];
+  const folders = [...packFolders];
+  const merged = new Map(); // a folder's id → the id of the one it became
+  const byPlace = new Map(); // "parent/name" → folder id kept
+  for (const adv of adventures) {
+    const { folders: own = [], ...rest } = adv;
+    const head = { ...rest };
+    for (const k of Object.keys(ADVENTURE_CONTENTS)) delete head[k];
+    kinds.set(head, 'Adventure');
+    docs.push(head);
+    // Parents first, so a merged parent is known when its children are placed.
+    const list = (Array.isArray(own) ? own : []).filter(isObject);
+    const depth = (f) => { let n = 0; for (let p = f.folder; p && n < 50; p = list.find((x) => x._id === p)?.folder) n++; return n; };
+    for (const f of [...list].sort((a, b) => depth(a) - depth(b))) {
+      const parent = f.folder ? merged.get(f.folder) ?? f.folder : adv.folder ?? null;
+      const place = `${parent ?? ''}/${String(f.name ?? '').trim().toLowerCase()}`;
+      if (byPlace.has(place)) { merged.set(f._id, byPlace.get(place)); continue; }
+      byPlace.set(place, f._id);
+      merged.set(f._id, f._id);
+      folders.push({ ...f, folder: parent });
+    }
+    for (const [collection, name] of Object.entries(ADVENTURE_CONTENTS)) {
+      for (const d of Array.isArray(adv[collection]) ? adv[collection] : []) {
+        if (!isObject(d)) continue;
+        const doc = { ...d, folder: d.folder ? merged.get(d.folder) ?? d.folder : adv.folder ?? null };
+        kinds.set(doc, name);
+        docs.push(doc);
+      }
+    }
+  }
+  return { docs, folders };
 }
 
 // ---- ids ----
@@ -233,6 +284,9 @@ class Notes {
  *   stored once uploaded (`stored`, Foundry path → campaign path), why the bundle hasn't some (`left`,
  *   path → reason), and a `folder` in place of the rules'.
  *   Without `stored`, a picture there is to upload points where it will go.
+ *   `refs`: the server remaps ids inside data on import (`core.import-refs`, TM ADR 0132; default
+ *   true). Then Foundry links and `ref`s to documents in this import become their entry ids;
+ *   without it, links keep only their label and tomes get no layout.
  */
 export function convert(rules, files, opts = {}) {
   const notes = new Notes();
@@ -254,6 +308,8 @@ export function convert(rules, files, opts = {}) {
   const stored = opts.assets?.stored ?? null;
   const refs = new Map();
   const targets = new Set();
+  // Foundry `_id` → the entry it became, for links and `ref`s (resolved once everything is made).
+  const foundryIds = new Map();
   const assetFor = (ref, docName) => {
     if (ref == null || ref === '' || typeof ref !== 'string') return '';
     const path = filePath(ref);
@@ -284,6 +340,7 @@ export function convert(rules, files, opts = {}) {
   /** Data checked against the target type, with what had to change counted. */
   const check = (type, data, docName) => {
     const def = schema[type];
+    if (def?.open) return data;
     if (!def) {
       if (checked && !unknownTypes.has(type)) {
         unknownTypes.add(type);
@@ -386,6 +443,8 @@ export function convert(rules, files, opts = {}) {
       const size = JSON.stringify(data).length;
       if (size > BODY_MAX) throw new Error(`its data is ${Math.round(size / 1024)} KB; a document may have 256 KB`);
       const id = ids.make(idBase);
+      const fid = isObject(scope.cur) ? scope.cur._id : null;
+      if (typeof fid === 'string' && fid && !foundryIds.has(fid)) foundryIds.set(fid, id);
       out.push({
         id, type: rule.type, name, parentId: where ?? null, sort: num(rule.sort(s, ctx)), data,
         flags: { [MODULE_ID]: { source: sourceRef } },
@@ -434,7 +493,7 @@ export function convert(rules, files, opts = {}) {
     };
 
     for (const [i, doc] of pack.docs.entries()) {
-      const key = doc.type ?? pack.kind ?? '?';
+      const key = doc.type ?? pack.kinds.get(doc) ?? pack.kind ?? '?';
       const docName = String(doc.name ?? '(unnamed)');
       const ctx = ctxFor(docName);
       const scope = scopeFor(doc);
@@ -464,6 +523,7 @@ export function convert(rules, files, opts = {}) {
       }
     }
   }
+  resolveRefs(entries, foundryIds, opts.refs !== false, notes);
   const assets = [...refs.values()];
   if (assets.length) {
     const kept = assetRules.missing === 'keep';
@@ -484,6 +544,38 @@ export function convert(rules, files, opts = {}) {
   }
   if (!checked) notes.add('No target schema: data was not checked against the system’s fields. Add one to the rules file (tools/schema.mjs) or load the system’s tavern.json.', null, 'warning');
   return { entries, packs, notes: notes.list(), problems, stats, assets };
+}
+
+/**
+ * Links and `ref`s, now every entry's id is known: to a document in this import, its entry id
+ * (the server remaps it on import); otherwise the link keeps its label and a `ref` its Foundry id.
+ * Without the server's remapping, links keep only their label and tomes lose their layout.
+ */
+function resolveRefs(entries, foundryIds, remaps, notes) {
+  const label = (s) => s.replace(/[[\]|]/g, '').trim();
+  const fix = (v, where) => {
+    if (typeof v === 'string') {
+      if (!/[\uE000\uE003]/.test(v)) return v;
+      return v
+        .replace(REF_RE, (_, fid) => (remaps && foundryIds.get(fid)) || fid)
+        .replace(LINK_RE, (_, fid, text) => {
+          const id = remaps ? foundryIds.get(fid) : null;
+          if (id) { notes.add('Foundry links made into links to the documents they point at', where); return `[[@${id}${label(text) ? `|${label(text)}` : ''}]]`; }
+          if (remaps) notes.add('Foundry links to documents not in this import: their label is kept', `${where}: ${text || fid}`);
+          return text;
+        });
+    }
+    if (Array.isArray(v)) return v.map((x) => fix(x, where));
+    if (isObject(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fix(x, where)]));
+    return v;
+  };
+  for (const e of entries) {
+    e.data = fix(e.data, e.name);
+    if (!remaps && e.type === 'core.tome') e.data = {};
+  }
+  if (!remaps && entries.some((e) => e.type === 'core.tome')) {
+    notes.add('This server doesn\u2019t carry ids through an import (core.import-refs), so tomes show their pages in Foundry\u2019s order, without sections', null);
+  }
 }
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : 0);

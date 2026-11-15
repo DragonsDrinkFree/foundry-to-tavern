@@ -51,8 +51,9 @@ export function fixDoubled(text) {
 /**
  * Foundry's inline text as Tavern Moot embeds (TM ADR 0111):
  * - inline rolls (`[[/r 1d6]]{Label}`, `[[1d6]]`) become `@roll[1d6]{Label}`;
- * - document links (`@UUID[…]{Label}`, `@Compendium[…]{Label}`) keep only their label, since the
- *   documents they point at aren't in the campaign;
+ * - document links (`@UUID[…]{Label}`, `@Compendium[…]{Label}`) become a link placeholder
+ *   (`linkPlaceholder`): convert() makes it `[[@<entry id>|Label]]` when the document it points at
+ *   came in with the import (TM ADR 0132), and otherwise keeps only the label;
  * - Foundry's `@Embed[…]` and `@Check[…]`-style enrichers keep their label, or vanish.
  */
 export function foundryEmbeds(text) {
@@ -61,9 +62,20 @@ export function foundryEmbeds(text) {
     .replace(/\[\[\/(?:r|roll|gmr|br|sr|publicroll|pr)\s+([^\]]+?)\s*\]\](?:\{([^}]*)\})?/gi,
       (_, f, label) => `@roll[${f.replace(/#.*$/, '').trim()}]${label ? `{${label}}` : ''}`)
     .replace(/\[\[([^/\]][^\]]*?)\]\](?:\{([^}]*)\})?/g, (_, f, label) => `@roll[${f.trim()}]${label ? `{${label}}` : ''}`)
-    .replace(/@(?:UUID|Compendium|Actor|Item|JournalEntry|JournalEntryPage|RollTable|Scene|Macro|Embed)\[[^\]]*\](?:\{([^}]*)\})?/g,
-      (_, label) => label ?? '');
+    .replace(/@(?:UUID|Compendium|Actor|Item|JournalEntry|JournalEntryPage|RollTable|Scene|Macro)\[([^\]]*)\](?:\{([^}]*)\})?/g,
+      (_, target, label) => linkPlaceholder(target.replace(/#.*$/, '').split('.').pop(), label ?? ''))
+    .replace(/@Embed\[[^\]]*\](?:\{([^}]*)\})?/g, (_, label) => label ?? '');
 }
+
+/**
+ * Markers for what convert() resolves once every entry's id is known: a link to a Foundry
+ * document (its `_id` and label), and a bare reference (the `ref` transform). Private-use
+ * characters, so no text has them and Markdown leaves them alone.
+ */
+export const LINK_RE = /\uE000([^\uE001\uE002]*)\uE001([^\uE002]*)\uE002/g;
+export const REF_RE = /\uE003([^\uE004]*)\uE004/g;
+export const linkPlaceholder = (id, label) => (id ? `\uE000${id}\uE001${String(label).replace(/[\uE000-\uE004]/g, '')}\uE002` : label);
+export const refPlaceholder = (id) => `\uE003${String(id).replace(/[\uE000-\uE004]/g, '')}\uE004`;
 
 /** Foundry's HTML (ProseMirror output) as Markdown, with its inline syntax as embeds. */
 export function htmlToMarkdown(html) {

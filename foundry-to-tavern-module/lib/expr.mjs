@@ -14,7 +14,7 @@
 // it; "$~" is the Foundry document being converted; "$^" the scope around this one (repeatable:
 // "$^.^"); "$#" the index of the element being mapped; "$:name" a variable from the rule's `vars`.
 
-import { fixDoubled, foundryEmbeds, htmlToMarkdown, humanize, resolveKey, stripHtml, titleCase } from './text.mjs';
+import { fixDoubled, foundryEmbeds, htmlToMarkdown, humanize, refPlaceholder, resolveKey, stripHtml, titleCase } from './text.mjs';
 
 export class RulesError extends Error {
   constructor(message, at) {
@@ -444,6 +444,18 @@ const TRANSFORMS = {
     const r = fixDoubled(v);
     if (r.fixed) c?.count?.('Text with doubled characters repaired');
     return r.text;
+  },
+  /** A Foundry document's `_id`, as the id of the entry it became in this import (else unchanged). */
+  ref: () => (v) => (isEmpty(v) ? v : refPlaceholder(toText(v))),
+  /** A list of objects in order of a path into each: `{ "sortBy": "sort" }`. */
+  sortBy: (arg, at) => {
+    if (typeof arg !== 'string' || !arg) throw new RulesError('expected a path, such as "sort"', at);
+    const key = arg.replace(/^\$\.?/, '');
+    return (v) => [...asList(v)].sort((a, b) => {
+      const x = getPath(a, key);
+      const y = getPath(b, key);
+      return typeof x === 'number' && typeof y === 'number' ? x - y : toText(x).localeCompare(toText(y));
+    });
   },
   /** A Foundry picture path, as the campaign path it is (or will be) uploaded to; "" if it won't be. */
   asset: () => (v, s, c) => (c?.asset ? c.asset(isEmpty(v) ? '' : toText(v)) : ''),

@@ -43,7 +43,7 @@ test('Dolmenwood → OSR converts every sample document', { skip: !have && 'no r
   assert.equal(out.packs.reduce((n, p) => n + p.skipped, 0), 0);
   assert.deepEqual(out.stats, {
     'osr.creature': 119, 'osr.class': 14, 'osr.ability': 144, 'osr.item': 108, 'osr.container': 13, 'osr.armor': 7,
-    'osr.weapon': 20, 'osr.spell': 124, 'osr.ancestry': 6, 'core.folder': 1, 'core.note': 200,
+    'osr.weapon': 20, 'osr.spell': 124, 'osr.ancestry': 6, 'core.tome': 1, 'core.note': 200,
   });
   const by = (n) => out.entries.find((e) => e.name === n);
   // Traits resolve from the lang files; nothing is left as a key.
@@ -55,8 +55,10 @@ test('Dolmenwood → OSR converts every sample document', { skip: !have && 'no r
   assert.equal(by('Torch (flaming)').data.melee.damage, '1d4');
   assert.equal(by('Antler Wraith').data.movement.base, 120);
   assert.ok(!/(\w)\1(\w)\2(\w)\3/.test(by('Brambling').data.behaviour.split('\n')[0]), 'doubled text repaired');
-  // Each pack's folder (6), the two packs' own folders (11 each), and the journal's: all there.
-  assert.equal(out.entries.filter((e) => e.type === 'core.folder').length, 6 + 11 + 11 + 1);
+  // Each pack's folder (6) and the two packs' own folders (11 each); the journal is a tome.
+  assert.equal(out.entries.filter((e) => e.type === 'core.folder').length, 6 + 11 + 11);
+  const tome = out.entries.find((e) => e.type === 'core.tome');
+  assert.equal(out.entries.filter((e) => e.parentId === tome.id && e.type === 'core.note').length, 200);
 });
 
 test('OSE → OSR converts every sample document', { skip: !have && 'no reference/Foundry' }, () => {
@@ -73,4 +75,50 @@ test('OSE → OSR converts every sample document', { skip: !have && 'no referenc
   const spell = out.entries.find((e) => e.type === 'osr.spell' && parents(e).includes('Spells') && parents(e).includes('The Hole in the Oak'));
   assert.ok(spell, 'a spell inside The Hole in the Oak / Spells');
   assert.equal(by('Silver crown').type, 'osr.treasure');
+  // Journals are tomes; their pages are notes held by them, in Foundry's order (by sort, which
+  // is how a tome shows pages its layout doesn't list).
+  const tomes = out.entries.filter((e) => e.type === 'core.tome');
+  assert.equal(tomes.length, 9); // the "PDF" journals keep their text page; the PDF itself stays behind
+  const oak = tomes.find((t) => t.name === 'The Hole In the Oak');
+  const pages = out.entries.filter((e) => e.parentId === oak.id);
+  assert.equal(pages.length, 68);
+  assert.ok(pages.every((p) => p.type === 'core.note'));
+  assert.ok(pages.filter((p) => p.data.body).length > 60, 'nearly every page has its text');
+  const journal = files[2].json.items.find((j) => j.name === 'The Hole In the Oak');
+  assert.deepEqual([...pages].sort((a, b) => a.sort - b.sort).map((p) => p.name), [...journal.pages].sort((a, b) => a.sort - b.sort).map((p) => p.name));
+  // The tome's layout lists its pages in Foundry's order, by their entry ids (TM ADR 0132).
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  assert.deepEqual(oak.data.pages.map((p) => byId.get(p.id)?.name), [...journal.pages].sort((a, b) => a.sort - b.sort).map((p) => p.name));
+  // Image pages show their picture: there with a bundle, empty-handed without one.
+  const art = out.entries.filter((e) => e.parentId === tomes.find((t) => t.name === 'Artwork').id);
+  assert.ok(art.length > 5);
+  const withPictures = convert(compileRules(read(at('rules', 'ose-to-osr.json'))), files, {
+    schema, assets: { files: Object.fromEntries(files[2].json.items.flatMap((j) => j.pages).filter((p) => p.src).map((p) => [p.src, { file: 'x', size: 1 }])) },
+  });
+  const drawn = withPictures.entries.filter((e) => /^!\[[^\]]*\]\(foundry\/ose\/[^)]+\)/.test(e.data?.body ?? ''));
+  assert.ok(drawn.length >= 3, `${drawn.length} image pages draw their picture`);
+});
+
+test('an adventure pack unpacks: its documents by their own rules, its folders merged', { skip: !have && 'no reference/Foundry' }, () => {
+  const file = path.join(FOUNDRY, 'fvtt-Adventure-pack-ose-hallsofthebloodking-adventure.json');
+  if (!fs.existsSync(file)) return;
+  const out = convert(compileRules(read(at('rules', 'ose-to-osr.json'))), [{ name: 'adv.json', json: read(file) }], { schema });
+  clean(out);
+  // Foundry keeps one "Halls of the Blood King" folder per document type; the archive has one.
+  const folders = out.entries.filter((e) => e.type === 'core.folder');
+  assert.deepEqual(folders.map((f) => f.name), ['Halls of the Blood King']);
+  const inFolder = out.entries.filter((e) => e.parentId === folders[0].id);
+  for (const t of ['osr.creature', 'osr.weapon', 'core.tome']) assert.ok(inFolder.some((e) => e.type === t), `${t} in the folder`);
+  // The adventure itself: a note of its description, at the top.
+  const intro = out.entries.find((e) => e.type === 'core.note' && e.name === 'Halls of the Blood King' && !e.parentId);
+  assert.ok(intro && intro.data.body.length > 200);
+  // Links between the adventure's journal pages and to its actors are links again.
+  const ids = new Set(out.entries.map((e) => e.id));
+  const links = out.entries.flatMap((e) => [...(e.data.body ?? '').matchAll(/\[\[@([A-Za-z0-9_-]+)/g)].map((m) => m[1]));
+  assert.ok(links.length >= 20, `${links.length} links`);
+  assert.ok(links.every((l) => ids.has(l)), 'every link names an entry of the import');
+  // Scenes and tables have no rules yet: counted, not lost silently.
+  assert.equal(out.packs[0].skipped, 10);
+  assert.ok(out.notes.some((n) => /^Scene: /.test(n.message) && n.count === 4));
+  assert.ok(out.notes.some((n) => /^RollTable: /.test(n.message) && n.count === 6));
 });

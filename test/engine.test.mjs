@@ -149,9 +149,48 @@ test('convert: wrap, holders the schema refuses, and rule choice by "when"', () 
 
 test('text: markdown, embeds and doubled characters', () => {
   assert.equal(htmlToMarkdown('<p><strong>Range: </strong>30&rsquo;</p><p>Roll [[/r 1d6]]{damage} or @UUID[Item.x]{Sword}.</p>'),
-    '**Range:** 30’\n\nRoll @roll[1d6]{damage} or Sword.');
+    '**Range:** 30’\n\nRoll @roll[1d6]{damage} or \uE000x\uE001Sword\uE002.'); // a link convert() resolves
   assert.equal(htmlToMarkdown('<ol><li>One</li><li>Two</li></ol>'), '1. One\n2. Two');
   assert.equal(fixDoubled('55′′ ttaallll tthhiicckkeettss ooff ddrraaggoonnflflyy').text, '5′ tall thickets of dragonfly');
   assert.equal(fixDoubled('A perfectly normal sentence here.').fixed, false);
   assert.equal(humanize('detectMagic'), 'Detect Magic');
+});
+
+test('links and refs: to documents in the import, by entry id (TM ADR 0132)', () => {
+  const r = compileRules({
+    format: 'foundry-to-tavern/rules', version: 1, name: 'T',
+    types: {
+      monster: { type: 'x.monster' },
+      JournalEntry: {
+        type: 'core.tome',
+        data: {
+          sections: { map: '$categories', to: { object: { id: '$_id', name: '$name' } } },
+          pages: { map: ['$pages', { sortBy: 'sort' }], to: { object: { id: ['$_id', 'ref'], section: ['$category', { default: null }] } } },
+        },
+        extra: [{ from: '$pages', type: 'core.note', data: { body: ['$text.content', 'markdown'] } }],
+      },
+    },
+  });
+  const files = [
+    { name: 'a.json', json: { type: 'Actor', items: [{ _id: 'goblin0000000001', name: 'Goblin', type: 'monster' }] } },
+    { name: 'j.json', json: { type: 'JournalEntry', items: [{
+      _id: 'journal000000001', name: 'Book', categories: [{ _id: 'cat1', name: 'Rooms' }],
+      pages: [
+        { _id: 'page000000000002', name: 'Two', sort: 200, category: 'cat1', text: { content: '<p>See @UUID[.page000000000001]{One} and @UUID[Compendium.x.y.Actor.goblin0000000001]{the goblin}, not @UUID[Actor.elsewhere00000]{Bob}.</p>' } },
+        { _id: 'page000000000001', name: 'One', sort: 100, text: { content: '<p>First.</p>' } },
+      ],
+    }] } },
+  ];
+  const out = convert(r, files);
+  const id = (n) => out.entries.find((e) => e.name === n).id;
+  const tome = out.entries.find((e) => e.type === 'core.tome');
+  assert.deepEqual(tome.data, { sections: [{ id: 'cat1', name: 'Rooms' }], pages: [{ id: id('One') }, { id: id('Two'), section: 'cat1' }] }); // no section: Tavern Moot's default, none
+  assert.equal(out.entries.find((e) => e.name === 'Two').data.body, `See [[@${id('One')}|One]] and [[@${id('Goblin')}|the goblin]], not Bob.`);
+  assert.ok(out.notes.some((n) => /not in this import/.test(n.message) && n.examples[0].endsWith('Bob')));
+  // A server without core.import-refs: labels only, and tomes without a layout.
+  const old = convert(r, files, { refs: false });
+  assert.deepEqual(old.entries.find((e) => e.type === 'core.tome').data, {});
+  assert.equal(old.entries.find((e) => e.name === 'Two').data.body, 'See One and the goblin, not Bob.');
+  // Nothing private-use is left anywhere.
+  assert.ok(!/[\uE000-\uE004]/.test(JSON.stringify([out.entries, old.entries])));
 });

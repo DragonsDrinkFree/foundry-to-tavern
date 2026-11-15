@@ -56,8 +56,12 @@ server the widget offers to upload copies instead, or to make the archive withou
 
 | File                                                       | From → to                         | Covers                                                                                                   |
 | ---------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [`rules/dolmenwood-to-osr.json`](rules/dolmenwood-to-osr.json) | Dolmenwood → OSR (`osr` system) | Equipment, spells, holy spells, runes, glamours, classes, kindreds, creatures, journals; their pictures. |
-| [`rules/ose-to-osr.json`](rules/ose-to-osr.json)               | OSE → OSR                       | Items and treasure, weapons, armour, containers, spells, monsters with attacks, journals; their pictures. |
+| [`rules/dolmenwood-to-osr.json`](rules/dolmenwood-to-osr.json) | Dolmenwood → OSR (`osr` system) | Equipment, spells, holy spells, runes, glamours, classes, kindreds, creatures, journals (as tomes); their pictures. |
+| [`rules/ose-to-osr.json`](rules/ose-to-osr.json)               | OSE → OSR                       | Items and treasure, weapons, armour, containers, spells, monsters with attacks, journals (as tomes), adventures; their pictures. |
+
+Journals become tomes, one page per Foundry page. Adventure compendiums are unpacked: their
+actors, items and journals convert by the same rules, and the adventure's description becomes a
+note. Scenes and roll tables aren't converted yet; the preview counts them as left out.
 
 To write rules for another system, see [docs/rules-format.md](docs/rules-format.md). The bundle's
 format is in [docs/bundle-format.md](docs/bundle-format.md).

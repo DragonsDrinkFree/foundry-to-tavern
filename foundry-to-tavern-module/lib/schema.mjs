@@ -39,6 +39,9 @@ export function isAssetPath(p) {
 export const CORE_TYPES = {
   'core.note': { category: 'note', contains: null, fields: [{ key: 'body', type: 'markdown', max: NOTE_BODY_MAX }] },
   'core.folder': { category: 'other', contains: [], fields: [] },
+  // A tome holds notes as its pages (TM ADR 0104). Its data (`sections`, and `pages` naming its
+  // notes by id) isn't field-shaped: `open` passes it through for Tavern Moot to check.
+  'core.tome': { category: 'note', contains: ['core.note'], fields: [], open: true },
 };
 
 function defaultValue(f) {
