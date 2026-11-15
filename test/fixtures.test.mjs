@@ -32,6 +32,8 @@ function clean(out) {
 
 test('both rule sets compile', () => {
   for (const f of ['dolmenwood-to-osr.json', 'ose-to-osr.json']) compileRules(read(at('rules', f)));
+  // Setup steps for the GM, shown under the rules.
+  assert.ok(compileRules(read(at('rules', 'dolmenwood-to-osr.json'))).setup.some((step) => /fairy-glamour/.test(step)));
 });
 
 test('Dolmenwood → OSR converts every sample document', { skip: !have && 'no reference/Foundry' }, () => {
@@ -42,8 +44,8 @@ test('Dolmenwood → OSR converts every sample document', { skip: !have && 'no r
   clean(out);
   assert.equal(out.packs.reduce((n, p) => n + p.skipped, 0), 0);
   assert.deepEqual(out.stats, {
-    'osr.creature': 119, 'osr.class': 14, 'osr.ability': 144, 'osr.item': 108, 'osr.container': 13, 'osr.armor': 7,
-    'osr.weapon': 20, 'osr.spell': 124, 'osr.ancestry': 6, 'core.tome': 1, 'core.note': 200,
+    'osr.creature': 119, 'osr.class': 14, 'osr.ability': 124, 'osr.item': 108, 'osr.container': 13, 'osr.armor': 7,
+    'osr.weapon': 20, 'osr.spell': 144, 'osr.ancestry': 6, 'core.tome': 1, 'core.note': 200,
   });
   const by = (n) => out.entries.find((e) => e.name === n);
   // Traits resolve from the lang files; nothing is left as a key.
@@ -53,6 +55,22 @@ test('Dolmenwood → OSR converts every sample document', { skip: !have && 'no r
   assert.deepEqual(enchanter.data.castings.runes.progression.uses[4], [2, 1, 1]);
   assert.deepEqual(enchanter.data.levels[0], { xp: 0, attack: 0, death: 11, ray: 12, hold: 13, breath: 16, spell: 14 });
   assert.equal(by('Torch (flaming)').data.melee.damage, '1d4');
+  // Runes and glamours: spells of their own sources, cast by the campaign's methods (tables.magic).
+  const spells = out.entries.filter((e) => e.type === 'osr.spell');
+  assert.equal(spells.filter((e) => e.data.sources.includes('glamour')).length, 20);
+  assert.equal(spells.filter((e) => e.data.sources.includes('fairy')).length, 18);
+  assert.equal(enchanter.data.castings.runes.method, 'fairy-runes');
+  assert.deepEqual([enchanter.data.castings.glamours.method, enchanter.data.castings.glamours.source], ['fairy-glamour', 'glamour']);
+  assert.deepEqual(enchanter.data.castings.glamours.progression.known.slice(0, 4), [[1], [2], [3], [3]]);
+  assert.deepEqual(enchanter.data.castings.glamours.progression.maxLevel.slice(0, 2), [1, 1]);
+  assert.equal(by('Magician').data.castings.glamours, undefined);
+  // Traits and skills are held by their class or kindred, granted at their level; none loose.
+  const holders = new Set(out.entries.filter((e) => e.type === 'osr.class' || e.type === 'osr.ancestry').map((e) => e.id));
+  const abilities = out.entries.filter((e) => e.type === 'osr.ability' && !e.data.category?.startsWith('Glamour'));
+  assert.ok(abilities.every((a) => holders.has(a.parentId)), 'every trait and skill is inside its class or kindred');
+  const knight = by('Knight');
+  assert.equal(out.entries.find((e) => e.parentId === knight.id && /hospitality/i.test(e.name)).data.grantLevel, 3);
+  assert.ok(out.entries.filter((e) => e.parentId === knight.id).every((e) => e.data.grantLevel >= 1));
   assert.equal(by('Antler Wraith').data.movement.base, 120);
   assert.ok(!/(\w)\1(\w)\2(\w)\3/.test(by('Brambling').data.behaviour.split('\n')[0]), 'doubled text repaired');
   // Each pack's folder (6) and the two packs' own folders (11 each); the journal is a tome.

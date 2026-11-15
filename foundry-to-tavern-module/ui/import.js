@@ -123,6 +123,8 @@ function useRules(json, { key, saved, name }) {
     $('rules-error').hidden = false;
   }
   $('asset-folder').value = '';
+  // The list shows the saved rules in use, or none.
+  $('saved').value = state.rules?.saved && state.rules.key in state.saved ? state.rules.key : '';
 }
 
 function showRules() {
@@ -146,10 +148,30 @@ function showRules() {
       schemaTypes ? `checks data against ${schemaTypes} types` : state.manifests.length ? 'checks data against the loaded tavern.json' : 'no schema: data is not checked',
     ].filter(Boolean).join(' · ') }),
   ];
+  if (c.setup.length) {
+    const steps = c.setup.map((step) => el('li', {}, ...inlineMarkdown(step)));
+    lines.push(el('div', { className: 'setup' },
+      el('h3', { textContent: 'Before you import' }),
+      c.setup.length > 1 ? el('ol', {}, ...steps) : el('p', {}, ...inlineMarkdown(c.setup[0]))));
+  }
   if (c.target.system && state.system && c.target.system !== state.system.id) {
     lines.push(el('p', { className: 'banner warn', textContent: `These rules make ${c.target.system} documents, but this campaign's system is ${state.system.name} (${state.system.id}). The archive would hold documents this campaign can't use.` }));
   }
   info.replaceChildren(...lines);
+}
+
+/** Text with **bold**, *italics* and `code` as nodes: never HTML, since rules files come from anyone. */
+function inlineMarkdown(text) {
+  const out = [];
+  const re = /\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`/g;
+  let at = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > at) out.push(text.slice(at, m.index));
+    out.push(m[1] != null ? el('strong', { textContent: m[1] }) : m[2] != null ? el('em', { textContent: m[2] }) : el('code', { textContent: m[3] }));
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) out.push(text.slice(at));
+  return out;
 }
 
 async function loadSaved() {

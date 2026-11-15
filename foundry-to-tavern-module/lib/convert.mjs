@@ -126,10 +126,12 @@ function compileTypeMap(spec, at, partials) {
  */
 export function compileRules(json) {
   if (!isObject(json)) throw new RulesError('a rules file is a JSON object');
-  onlyKeys(json, ['$schema', 'format', 'version', 'id', 'name', 'description', 'authors', 'source', 'target', 'options', 'tables', 'partials', 'schema', 'types', 'embedded', 'assets'], '');
+  onlyKeys(json, ['$schema', 'format', 'version', 'id', 'name', 'description', 'setup', 'authors', 'source', 'target', 'options', 'tables', 'partials', 'schema', 'types', 'embedded', 'assets'], '');
   if (json.format !== RULES_FORMAT) throw new RulesError(`"format" must be "${RULES_FORMAT}" (is this a rules file?)`, 'format');
   if (json.version !== RULES_VERSION) throw new RulesError(`version ${JSON.stringify(json.version)} isn't supported; this module reads version ${RULES_VERSION}`, 'version');
   if (typeof json.name !== 'string' || !json.name.trim()) throw new RulesError('"name" is required', 'name');
+  const setup = json.setup === undefined ? [] : Array.isArray(json.setup) ? json.setup : [json.setup];
+  if (!setup.every((x) => typeof x === 'string' && x.trim())) throw new RulesError('"setup" is text, or a list of steps (each text)', 'setup');
   if (json.tables !== undefined && !isObject(json.tables)) throw new RulesError('"tables" must be an object of name: {key: value}', 'tables');
   for (const [k, t] of Object.entries(json.tables ?? {})) if (!isObject(t)) throw new RulesError('a table is an object of key: value', `tables.${k}`);
   if (json.schema !== undefined && !isObject(json.schema)) throw new RulesError('"schema" must be an object of type: {category, contains, fields}', 'schema');
@@ -147,6 +149,8 @@ export function compileRules(json) {
     id: String(json.id ?? ''),
     name: json.name.trim(),
     description: String(json.description ?? ''),
+    /** What to do in the campaign before importing: steps, in Markdown (bold, italics, code). */
+    setup: setup.map((x) => x.trim()),
     source: { systems: asStrings(json.source?.systems ?? json.source?.system) },
     target: { system: json.target?.system ? String(json.target.system) : null },
     options: { folders: options.folders ?? 'all', wrap: options.wrap ?? null, idPrefix: options.idPrefix ?? null, access: options.access ?? 'gm' },

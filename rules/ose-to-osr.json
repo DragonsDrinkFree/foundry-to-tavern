@@ -156,7 +156,10 @@
       "type": "osr.creature",
       "embedded": { "except": ["weapon", "ability"] },
       "data": {
-        "portrait": [{ "if": ["$img", { "test": "^icons/" }], "then": "$prototypeToken.texture.src", "else": "$img" }, "asset"],
+        "portrait": [
+          { "if": ["$img", { "test": "^icons/" }], "then": "$prototypeToken.texture.src", "else": "$img" },
+          "asset"
+        ],
         "level": ["$system.hp.hd", { "match": "^\\s*(\\d+)" }, "int", { "default": 1 }],
         "hpDice": ["$system.hp.hd", { "default": "1d8" }, "string", { "truncate": 20 }],
         "hp.value": ["$system.hp.value", "number", { "default": 0 }, { "atLeast": 0 }],
@@ -241,7 +244,10 @@
         "when": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, "present"],
         "type": "core.tome",
         "data": {
-          "sections": { "map": ["$categories", { "sortBy": "sort" }], "to": { "object": { "id": "$_id", "name": ["$name", { "default": "Section" }] } } },
+          "sections": {
+            "map": ["$categories", { "sortBy": "sort" }],
+            "to": { "object": { "id": "$_id", "name": ["$name", { "default": "Section" }] } }
+          },
           "pages": {
             "map": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, { "sortBy": "sort" }],
             "to": { "object": { "id": ["$_id", "ref"], "section": "$category" } }
@@ -256,12 +262,21 @@
                 "if": ["$type", { "eq": "image" }],
                 "then": {
                   "join": [
-                    { "if": ["$src", "asset", "present"], "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$src", "asset"], ")"] } },
+                    {
+                      "if": ["$src", "asset", "present"],
+                      "then": {
+                        "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$src", "asset"], ")"]
+                      }
+                    },
                     ["$image.caption", "markdown"]
                   ],
                   "sep": "\n\n"
                 },
-                "else": { "if": ["$text.format", { "eq": 2 }], "then": "$text.markdown", "else": ["$text.content", "markdown"] }
+                "else": {
+                  "if": ["$text.format", { "eq": 2 }],
+                  "then": "$text.markdown",
+                  "else": ["$text.content", "markdown"]
+                }
               }
             }
           }
@@ -274,7 +289,10 @@
       "data": {
         "body": {
           "join": [
-            { "if": ["$img", "asset", "present"], "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$img", "asset"], ")"] } },
+            {
+              "if": ["$img", "asset", "present"],
+              "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$img", "asset"], ")"] }
+            },
             ["$caption", "markdown"],
             ["$description", "markdown"]
           ],
@@ -599,7 +617,10 @@
           "options": [{ "value": "all" }, { "value": "choice" }],
           "default": "all"
         },
-        { "key": "effectsOn", "type": "boolean", "default": true }
+        { "key": "effectsOn", "type": "boolean", "default": true },
+        { "key": "grantedBy", "type": "text", "max": 100, "default": "" },
+        { "key": "grantLevel", "type": "number", "integer": true, "min": 1, "max": 99, "default": 1 },
+        { "key": "grantedFrom", "type": "text", "max": 100, "default": "" }
       ]
     },
     "osr.item": {

@@ -52,7 +52,8 @@ left out, and the preview counts them.
 | `version`     |   yes    | Always `1`.                                                                                                                                                                  |
 | `name`        |   yes    | Shown in the widget, and the default archive name when several packs are converted.                                                                                          |
 | `id`          |          | A short id. The widget saves the rules under it in the campaign.                                                                                                             |
-| `description` |          | Shown under the name. Say which lang files the rules need, if any.                                                                                                           |
+| `description` |          | Shown under the name: what the rules convert, and into what.                                                                                                                 |
+| `setup`       |          | What the GM must do in the campaign before importing: text, or a list of steps. Shown under the rules as *Before you import*. See [Setup steps](#setup-steps).               |
 | `source`      |          | `{ "systems": ["ose"] }`: the Foundry systems the rules are written for. If an export comes from another system, the widget warns.                                           |
 | `target`      |          | `{ "system": "osr" }`: the Tavern Moot system the documents are for. If the campaign runs another system, the widget warns.                                                 |
 | `options`     |          | See [Options](#options).                                                                                                                                                     |
@@ -62,6 +63,26 @@ left out, and the preview counts them.
 | `embedded`    |          | Rules for documents embedded in another (an actor's items), when they differ from `types`. See [Embedded documents](#embedded-documents).                                    |
 | `schema`      |          | The target types' field definitions, written by `tools/schema.mjs`. Every converted document is checked against them. See [Checking against the target](#checking-against-the-target). |
 | `assets`      |          | Where pictures go in the campaign's files, and which to bring. See [Pictures](#pictures).                                                                                     |
+
+### Setup steps
+
+Some rules need the campaign set up first: a casting method or magic source the system doesn't ship,
+a homebrew setting, lang files to load beside the export. Say so in `setup`:
+
+```json
+"setup": [
+  "In **Campaign settings ▸ Home Brew ▸ Spellcasting**, add a casting method with the key `fairy-glamour`.",
+  "Load Dolmenwood's lang files (`en.json`, `en-traits.json`) with the export."
+]
+```
+
+The widget shows the steps under the rules as soon as they're chosen, numbered when there are
+several. The CLI prints them first. Steps may use `**bold**`, `*italics*` and `` `code` ``; nothing
+else is formatted, and HTML shows as text.
+
+Keys a campaign may name differently are best kept in a table, so a GM changes them in one place. The
+Dolmenwood rules keep their casting methods and sources in `tables.magic` and read them with
+`["runeMethod", { "lookup": "magic" }]`.
 
 ### Options
 

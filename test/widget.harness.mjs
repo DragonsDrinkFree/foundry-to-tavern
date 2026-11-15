@@ -129,7 +129,19 @@ const MOCK = `
       await until(() => __calls.filter((c) => c[0] === 'archives.create').length > before, 'the second archives.create', 4000);
       await until(() => /Pictures:/.test(document.getElementById('status').textContent), 'the pictures status');
       fe.status = document.getElementById('status').textContent;
-      finish({ ci, fe, calls: __calls });
+
+      // Rules with setup steps show them under the rules, formatted but never as HTML.
+      const dw = new File([await (await fetch('/rules/dolmenwood-to-osr.json')).text()], 'dolmenwood-to-osr.json', { type: 'application/json' });
+      const dt3 = new DataTransfer();
+      dt3.items.add(dw);
+      document.getElementById('drop-fe').dispatchEvent(new DragEvent('drop', { dataTransfer: dt3, bubbles: true, cancelable: true }));
+      await until(() => document.querySelector('#rules-info .setup'), 'the setup steps');
+      const setup = {
+        steps: document.querySelectorAll('#rules-info .setup li').length,
+        code: [...document.querySelectorAll('#rules-info .setup code')].map((c) => c.textContent),
+        strong: document.querySelectorAll('#rules-info .setup strong').length,
+      };
+      finish({ ci, fe, setup, calls: __calls });
     } catch (err) {
       finish({ error: String(err && err.stack || err), errors: __errors, calls: __calls, status: document.getElementById('status').textContent + ' | pictures: ' + document.getElementById('pictures-info').textContent + ' | create disabled: ' + document.getElementById('create').disabled,
         page: { rulesError: document.getElementById('rules-error').textContent, files: document.getElementById('files').textContent, info: document.getElementById('rules-info').textContent } });
@@ -212,6 +224,8 @@ server.listen(0, '127.0.0.1', () => {
         check(pics.filter(Boolean).length > 50, `most documents have their picture (${pics.filter(Boolean).length})`);
       } else fail.push('no second archives.create, or no uploads');
       check(/^Made/.test(fe.status) && /failed/.test(fe.status), `the status reports the uploads (${fe.status})`);
+      check(r.setup.steps === 4, `the Dolmenwood rules' four setup steps (${r.setup.steps})`);
+      check(r.setup.code.includes('fairy-glamour') && r.setup.strong > 0, 'with their code and bold as elements');
     }
     if (shot) {
       execFile(chrome, [...args, `--screenshot=${shot}`, url], { timeout: 120_000 }, () => done(fail.length ? 1 : 0, fail.length ? `FAIL:\n  ${fail.join('\n  ')}` : `ok: widget (screenshot ${shot})`));

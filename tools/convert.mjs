@@ -78,6 +78,10 @@ if (opts.json) {
   const uploads = bundle ? plan().map(({ from, path: to, size }) => ({ from, to, size })) : undefined;
   process.stdout.write(`${JSON.stringify({ packs: out.packs, stats: out.stats, notes: out.notes, problems: out.problems, uploads, entries: opts.out ? undefined : out.entries }, null, 2)}\n`);
 } else {
+  if (rules.setup.length) {
+    console.log('Before you import:');
+    rules.setup.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
+  }
   for (const p of out.packs) {
     console.log(`${p.file} (${p.label}, ${p.system ?? 'unknown system'}): ${p.documents} documents, ${p.folders} folders, ${p.skipped} left out`);
     for (const [t, n] of Object.entries(p.byType)) console.log(`  ${String(n).padStart(4)} ${t}`);

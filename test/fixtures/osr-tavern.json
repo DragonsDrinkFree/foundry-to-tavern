@@ -4,7 +4,7 @@
   "kind": "system",
   "name": "OSR",
   "version": "0.2.0",
-  "description": "The Whiterook rules on Tavern Moot: an AD&D-flavoured OSR system with home-brewable magic.",
+  "description": "An OSR system for Tavern Moot: B/X and AD&D-flavoured play, Dolmenwood support, and home-brewable magic.",
   "authors": [
     "DragonsDrinkFree"
   ],
@@ -42,7 +42,11 @@
             "id": "walk",
             "label": "Exploring",
             "from": "members",
-            "mode": "walk"
+            "mode": "walk",
+            "who": [
+              "members",
+              "role:retainer"
+            ]
           }
         ]
       },
@@ -67,41 +71,100 @@
             "label": "Mounted",
             "from": "role:mount",
             "mode": "miles",
-            "without": "block"
+            "without": "block",
+            "who": [
+              "members",
+              "role:retainer"
+            ]
           },
           {
             "id": "mounted-tp",
             "label": "Mounted (Travel Points)",
             "from": "role:mount",
             "mode": "travel-points",
-            "without": "block"
+            "without": "block",
+            "who": [
+              "members",
+              "role:retainer"
+            ]
           },
           {
             "id": "mounted-forced",
             "label": "Mounted, forced march",
             "from": "role:mount",
             "mode": "forced",
-            "without": "block"
+            "without": "block",
+            "who": [
+              "members",
+              "role:retainer"
+            ]
           },
           {
             "id": "miles",
             "label": "On foot",
             "from": "members",
-            "mode": "miles"
+            "mode": "miles",
+            "who": [
+              "members",
+              "role:retainer"
+            ]
           },
           {
             "id": "travel-points",
             "label": "Travel Points",
             "from": "members",
-            "mode": "travel-points"
+            "mode": "travel-points",
+            "who": [
+              "members",
+              "role:retainer"
+            ]
           },
           {
             "id": "forced",
             "label": "Forced march",
             "from": "members",
-            "mode": "forced"
+            "mode": "forced",
+            "who": [
+              "members",
+              "role:retainer"
+            ]
           }
         ]
+      }
+    ],
+    "riding": [
+      {
+        "id": "ride",
+        "label": "Ride",
+        "leave": "Dismount",
+        "on": "Riding",
+        "carrying": "Ridden by",
+        "mounts": [
+          "osr.creature"
+        ],
+        "carries": "@data.mount"
+      },
+      {
+        "id": "drive",
+        "label": "Drive",
+        "leave": "Step down",
+        "on": "Driving",
+        "carrying": "Driven by",
+        "mounts": [
+          "osr.vehicle"
+        ]
+      },
+      {
+        "id": "board",
+        "label": "Board",
+        "leave": "Get off",
+        "on": "Aboard",
+        "carrying": "Carrying",
+        "mounts": [
+          "osr.vehicle"
+        ],
+        "carries": "@data.passengers",
+        "steers": false
       }
     ]
   },
@@ -109,7 +172,19 @@
     "roles": [
       {
         "id": "mount",
-        "label": "Mount",
+        "label": "Mount (riding)",
+        "of": "member",
+        "split": true
+      },
+      {
+        "id": "spare",
+        "label": "Spare mount or vehicle",
+        "of": "member",
+        "split": true
+      },
+      {
+        "id": "retainer",
+        "label": "Retainer",
         "of": "member",
         "split": true
       },
@@ -449,9 +524,12 @@
     "ui.sheet:core.party",
     "ui.session:xp",
     "hooks.on:clock.changed",
+    "hooks.on:document.deleted",
+    "hooks.on:document.updated",
     "hooks.before:token.create",
     "hooks.before:combat.rules",
-    "hooks.before:combat.actions"
+    "hooks.before:combat.actions",
+    "hooks.before:party.split"
   ],
   "store": {
     "homebrew": {
@@ -467,7 +545,7 @@
     {
       "id": "character",
       "kind": "sheet",
-      "label": "Whiterook character",
+      "label": "OSR Character",
       "types": [
         "osr.character"
       ],
@@ -480,12 +558,13 @@
       "minSize": {
         "width": 520,
         "height": 520
-      }
+      },
+      "header": "full"
     },
     {
       "id": "item",
       "kind": "sheet",
-      "label": "Whiterook item",
+      "label": "OSR Item",
       "types": [
         "osr.class",
         "osr.ancestry",
@@ -508,7 +587,8 @@
       "minSize": {
         "width": 420,
         "height": 360
-      }
+      },
+      "header": "full"
     },
     {
       "id": "party",
@@ -1041,6 +1121,118 @@
             }
           ]
         }
+      ],
+      "effectTargets": [
+        {
+          "key": "data.abilities.str.bonus",
+          "label": "STR score",
+          "group": "Abilities"
+        },
+        {
+          "key": "data.abilities.dex.bonus",
+          "label": "DEX score",
+          "group": "Abilities"
+        },
+        {
+          "key": "data.abilities.con.bonus",
+          "label": "CON score",
+          "group": "Abilities"
+        },
+        {
+          "key": "data.abilities.int.bonus",
+          "label": "INT score",
+          "group": "Abilities"
+        },
+        {
+          "key": "data.abilities.wis.bonus",
+          "label": "WIS score",
+          "group": "Abilities"
+        },
+        {
+          "key": "data.abilities.cha.bonus",
+          "label": "CHA score",
+          "group": "Abilities"
+        },
+        {
+          "key": "data.bonuses.ac",
+          "label": "AC",
+          "group": "Combat"
+        },
+        {
+          "key": "data.bonuses.attack",
+          "label": "Attack",
+          "group": "Combat"
+        },
+        {
+          "key": "data.bonuses.attackMelee",
+          "label": "Melee attack",
+          "group": "Combat"
+        },
+        {
+          "key": "data.bonuses.attackMissile",
+          "label": "Missile attack",
+          "group": "Combat"
+        },
+        {
+          "key": "data.bonuses.initiative",
+          "label": "Initiative",
+          "group": "Combat"
+        },
+        {
+          "key": "data.bonuses.magicResist",
+          "label": "Magic resist",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.death.always",
+          "label": "Death save (always)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.death.optional",
+          "label": "Death save (optional)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.ray.always",
+          "label": "Ray save (always)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.ray.optional",
+          "label": "Ray save (optional)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.hold.always",
+          "label": "Hold save (always)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.hold.optional",
+          "label": "Hold save (optional)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.breath.always",
+          "label": "Breath save (always)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.breath.optional",
+          "label": "Breath save (optional)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.spell.always",
+          "label": "Spell save (always)",
+          "group": "Saves"
+        },
+        {
+          "key": "data.bonuses.saves.spell.optional",
+          "label": "Spell save (optional)",
+          "group": "Saves"
+        }
       ]
     },
     {
@@ -1367,6 +1559,28 @@
           "visibility": "gm"
         }
       ],
+      "derived": [
+        {
+          "key": "level",
+          "label": "Level",
+          "code": true
+        },
+        {
+          "key": "ac",
+          "label": "Armor class",
+          "code": true
+        },
+        {
+          "key": "saves",
+          "label": "Saves",
+          "code": true
+        },
+        {
+          "key": "speeds",
+          "label": "Speeds",
+          "code": true
+        }
+      ],
       "rolls": [
         {
           "id": "attack",
@@ -1601,6 +1815,23 @@
               "speed": "@derived.speeds.travelPoints"
             }
           ]
+        }
+      ],
+      "effectTargets": [
+        {
+          "key": "data.ac",
+          "label": "AC",
+          "group": "Combat"
+        },
+        {
+          "key": "data.morale",
+          "label": "Morale",
+          "group": "Combat"
+        },
+        {
+          "key": "data.movement.base",
+          "label": "Movement rate",
+          "group": "Movement"
         }
       ]
     },
@@ -1983,7 +2214,10 @@
       "equipped": {
         "field": "effectsOn"
       },
-      "effectsTab": false
+      "effectsTab": false,
+      "contains": [
+        "osr.ability"
+      ]
     },
     {
       "name": "ancestry",
@@ -2015,7 +2249,10 @@
       "equipped": {
         "field": "effectsOn"
       },
-      "effectsTab": false
+      "effectsTab": false,
+      "contains": [
+        "osr.ability"
+      ]
     },
     {
       "name": "ability",
@@ -2304,6 +2541,32 @@
           "label": "Effects apply",
           "default": true,
           "hint": "Its effects apply to whoever holds it"
+        },
+        {
+          "key": "grantedBy",
+          "type": "text",
+          "label": "Granted by",
+          "max": 100,
+          "default": "",
+          "hint": "The class or ancestry on this character that gave it (taken away with it). Blank: the character's own."
+        },
+        {
+          "key": "grantLevel",
+          "type": "number",
+          "label": "Granted at level",
+          "integer": true,
+          "min": 1,
+          "max": 99,
+          "default": 1,
+          "hint": "In a class: the class level that grants it. In an ancestry: the character's level."
+        },
+        {
+          "key": "grantedFrom",
+          "type": "text",
+          "label": "Granted from",
+          "max": 100,
+          "default": "",
+          "hint": "The ability in the class or ancestry this is a copy of."
         }
       ],
       "equipped": {
@@ -2413,6 +2676,11 @@
       "label": "Item",
       "labelPlural": "Items",
       "icon": "🎒",
+      "nameHidden": {
+        "until": "identified",
+        "show": "unidentifiedName",
+        "fallback": "Unknown Item"
+      },
       "image": "img",
       "fields": [
         {
@@ -2576,6 +2844,11 @@
       "label": "Armor",
       "labelPlural": "Armor",
       "icon": "🛡",
+      "nameHidden": {
+        "until": "identified",
+        "show": "unidentifiedName",
+        "fallback": "Unknown Item"
+      },
       "image": "img",
       "fields": [
         {
@@ -2775,6 +3048,11 @@
       "label": "Weapon",
       "labelPlural": "Weapons",
       "icon": "🗡",
+      "nameHidden": {
+        "until": "identified",
+        "show": "unidentifiedName",
+        "fallback": "Unknown Item"
+      },
       "image": "img",
       "fields": [
         {
@@ -3096,6 +3374,11 @@
       "label": "Ammunition",
       "labelPlural": "Ammunition",
       "icon": "➶",
+      "nameHidden": {
+        "until": "identified",
+        "show": "unidentifiedName",
+        "fallback": "Unknown Item"
+      },
       "image": "img",
       "fields": [
         {
@@ -3313,6 +3596,11 @@
       "label": "Container",
       "labelPlural": "Containers",
       "icon": "👝",
+      "nameHidden": {
+        "until": "identified",
+        "show": "unidentifiedName",
+        "fallback": "Unknown Item"
+      },
       "image": "img",
       "fields": [
         {
@@ -3502,6 +3790,11 @@
       "label": "Treasure",
       "labelPlural": "Treasure",
       "icon": "💰",
+      "nameHidden": {
+        "until": "identified",
+        "show": "unidentifiedName",
+        "fallback": "Unknown Item"
+      },
       "image": "img",
       "fields": [
         {
@@ -3697,6 +3990,11 @@
       "label": "Spell",
       "labelPlural": "Spells",
       "icon": "🔮",
+      "nameHidden": {
+        "until": "identified",
+        "show": "unidentifiedName",
+        "fallback": "Unknown Spell"
+      },
       "image": "img",
       "fields": [
         {

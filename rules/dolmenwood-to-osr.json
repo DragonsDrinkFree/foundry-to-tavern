@@ -3,13 +3,20 @@
   "version": 1,
   "id": "dolmenwood-to-osr",
   "name": "Dolmenwood → OSR",
-  "description": "Dolmenwood's Foundry packs (equipment, player options, classes, kindreds, creatures, journals) as the OSR system's Whiterook-style documents. Load Dolmenwood's lang files (en.json, en-traits.json, en-classes.json, en-kindreds.json) with the export so class and kindred traits get their names.",
+  "description": "Dolmenwood's Foundry packs (equipment, player options, classes, kindreds, creatures, journals) as the OSR system's Whiterook-style documents. Runes and glamours become spells of their own casting methods; class and kindred traits and class skills are held by their class or kindred, granted at their level.",
+  "setup": [
+    "In **Campaign settings ▸ Home Brew ▸ Spellcasting**, add a casting method with the key `fairy-glamour` for glamours (Cast freely, Unlimited, refresh Day). Use *Known* acquisition if characters should be limited to the glamours they know: the classes carry Dolmenwood's glamours-known counts. Runes use the shipped **Fairy Runes** method (`fairy-runes`).",
+    "In the same place, add a magic source with the key `glamour` (label *Glamour*). Runes use the shipped `fairy` source. Glamours become spells of the `glamour` source, so the Fairy Runes casting doesn't offer them, nor the Glamours casting runes.",
+    "Load Dolmenwood's lang files (`en.json`, `en-traits.json`, `en-classes.json`, `en-kindreds.json`) with the export, or export with **Export for Tavern Moot** (it carries them), so class and kindred traits get their names.",
+    "Different keys in your campaign? Change them in the rules file's `tables.magic` before importing."
+  ],
   "authors": ["foundry-to-tavern"],
   "source": { "systems": ["dolmenwood"] },
   "target": { "system": "osr" },
   "options": { "folders": "all" },
   "assets": { "folder": "foundry/dolmenwood", "exclude": ["icons/svg/"] },
   "tables": {
+    "magic": { "runeMethod": "fairy-runes", "runeSource": "fairy", "glamourMethod": "fairy-glamour", "glamourSource": "glamour" },
     "runeLevels": { "lesser": 1, "greater": 2, "mighty": 3 },
     "saveLabels": { "doom": "Doom", "ray": "Ray", "hold": "Hold", "blast": "Blast", "spell": "Spell" }
   },
@@ -55,6 +62,7 @@
         "daily": ["$:usage", { "test": ["day", "i"] }]
       },
       "data": {
+        "grantLevel": ["$trait.minLevel", "int", { "default": 1 }, { "atLeast": 1 }],
         "category": ["{{~.name}} ({{:group}})", { "truncate": 60 }],
         "activation": ["$trait.traitType", { "eq": "active" }, { "then": "active", "else": "passive" }],
         "resolution": { "if": "$trait.rollFormula", "then": "formula", "else": "none" },
@@ -80,7 +88,6 @@
             },
             "flatten"
           ],
-          "place": "beside",
           "use": "trait"
         }
       ]
@@ -227,7 +234,7 @@
       "vars": { "magnitude": ["$system.magnitude", { "oneOf": ["lesser", "greater", "mighty"], "else": "lesser" }] },
       "data": {
         "level": ["$:magnitude", { "lookup": "runeLevels" }],
-        "sources": { "value": ["fairy"] },
+        "sources": { "list": [["runeSource", { "lookup": "magic" }]] },
         "description": {
           "join": [["$:magnitude", "humanize", { "template": "**{{.}} rune**" }], ["$system.description", "markdown"]],
           "sep": "\n\n"
@@ -235,12 +242,10 @@
       }
     },
     "Glamour": {
-      "type": "osr.ability",
+      "use": "spell",
       "data": {
-        "img": ["$img", "asset"],
-        "category": "Glamour",
-        "activation": ["$system.usageFrequency", { "test": ["always", "i"] }, { "then": "passive", "else": "active" }],
-        "resolution": "none",
+        "level": 1,
+        "sources": { "list": [["glamourSource", { "lookup": "magic" }]] },
         "description": {
           "join": [
             {
@@ -319,6 +324,11 @@
           "then": ["$system.saveProgressions.spell", { "slice": [1] }],
           "else": ["$system.saveProgressions.spell", "array"]
         },
+        "glamours": {
+          "if": ["$system.glamourProgression", "length", { "gt": 15 }],
+          "then": ["$system.glamourProgression", { "slice": [1] }, { "each": "int" }],
+          "else": ["$system.glamourProgression", "array", { "each": "int" }]
+        },
         "count": [
           {
             "list": [
@@ -395,12 +405,19 @@
             "fairy": {
               "object": {
                 "runes.name": "Fairy Runes",
-                "runes.method": "fairy-runes",
-                "runes.source": "fairy",
+                "runes.method": ["runeMethod", { "lookup": "magic" }],
+                "runes.source": ["runeSource", { "lookup": "magic" }],
                 "runes.progression.slots": { "value": [] },
                 "runes.progression.pool": { "value": [] },
                 "runes.progression.maxLevel": { "value": [] },
                 "runes.progression.known": { "value": [] },
+                "glamours.name": "Glamours",
+                "glamours.method": ["glamourMethod", { "lookup": "magic" }],
+                "glamours.source": ["glamourSource", { "lookup": "magic" }],
+                "glamours.progression.slots": { "value": [] },
+                "glamours.progression.pool": { "value": [] },
+                "glamours.progression.maxLevel": { "map": "$:glamours", "to": { "if": ["$", { "gt": 0 }], "then": 1, "else": 0 } },
+                "glamours.progression.known": { "map": "$:glamours", "to": { "list": ["$"] } },
                 "runes.progression.uses": {
                   "map": { "range": "$:count" },
                   "to": {
@@ -444,7 +461,6 @@
       "extra": [
         {
           "from": { "map": "$system.skillProgressions", "where": ["$value", "present"], "to": "$" },
-          "place": "beside",
           "type": "osr.ability",
           "name": ["$key", "humanize"],
           "vars": {
@@ -472,7 +488,10 @@
     "Creature": {
       "type": "osr.creature",
       "data": {
-        "portrait": [{ "if": ["$img", { "test": "^icons/" }], "then": "$prototypeToken.texture.src", "else": "$img" }, "asset"],
+        "portrait": [
+          { "if": ["$img", { "test": "^icons/" }], "then": "$prototypeToken.texture.src", "else": "$img" },
+          "asset"
+        ],
         "level": ["$system.level", "number", { "default": 1 }],
         "hpDice": ["$system.hpDice", { "default": "1d8" }, "string", { "truncate": 20 }],
         "hp.value": ["$system.hp.value", "number", { "default": 0 }, { "atLeast": 0 }],
@@ -529,7 +548,10 @@
         "when": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, "present"],
         "type": "core.tome",
         "data": {
-          "sections": { "map": ["$categories", { "sortBy": "sort" }], "to": { "object": { "id": "$_id", "name": ["$name", { "default": "Section" }] } } },
+          "sections": {
+            "map": ["$categories", { "sortBy": "sort" }],
+            "to": { "object": { "id": "$_id", "name": ["$name", { "default": "Section" }] } }
+          },
           "pages": {
             "map": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, { "sortBy": "sort" }],
             "to": { "object": { "id": ["$_id", "ref"], "section": "$category" } }
@@ -544,12 +566,21 @@
                 "if": ["$type", { "eq": "image" }],
                 "then": {
                   "join": [
-                    { "if": ["$src", "asset", "present"], "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$src", "asset"], ")"] } },
+                    {
+                      "if": ["$src", "asset", "present"],
+                      "then": {
+                        "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$src", "asset"], ")"]
+                      }
+                    },
                     ["$image.caption", "markdown"]
                   ],
                   "sep": "\n\n"
                 },
-                "else": { "if": ["$text.format", { "eq": 2 }], "then": "$text.markdown", "else": ["$text.content", "markdown"] }
+                "else": {
+                  "if": ["$text.format", { "eq": 2 }],
+                  "then": "$text.markdown",
+                  "else": ["$text.content", "markdown"]
+                }
               }
             }
           }
@@ -562,7 +593,10 @@
       "data": {
         "body": {
           "join": [
-            { "if": ["$img", "asset", "present"], "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$img", "asset"], ")"] } },
+            {
+              "if": ["$img", "asset", "present"],
+              "then": { "join": ["![", ["$name", { "replace": ["[\\[\\]|]", ""] }], "](", ["$img", "asset"], ")"] }
+            },
             ["$caption", "markdown"],
             ["$description", "markdown"]
           ],
@@ -652,7 +686,7 @@
     },
     "osr.class": {
       "category": "item",
-      "contains": [],
+      "contains": ["osr.ability"],
       "fields": [
         { "key": "img", "type": "image" },
         { "key": "description", "type": "markdown" },
@@ -680,7 +714,7 @@
     },
     "osr.ancestry": {
       "category": "item",
-      "contains": [],
+      "contains": ["osr.ability"],
       "fields": [
         { "key": "img", "type": "image" },
         { "key": "description", "type": "markdown" },
@@ -781,7 +815,10 @@
           "options": [{ "value": "all" }, { "value": "choice" }],
           "default": "all"
         },
-        { "key": "effectsOn", "type": "boolean", "default": true }
+        { "key": "effectsOn", "type": "boolean", "default": true },
+        { "key": "grantedBy", "type": "text", "max": 100, "default": "" },
+        { "key": "grantLevel", "type": "number", "integer": true, "min": 1, "max": 99, "default": 1 },
+        { "key": "grantedFrom", "type": "text", "max": 100, "default": "" }
       ]
     },
     "osr.item": {
