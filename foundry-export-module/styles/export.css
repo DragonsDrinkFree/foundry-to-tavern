@@ -1,0 +1,43 @@
+.tavern-export-dialog .hint {
+  display: block;
+  font-size: var(--font-size-12, 12px);
+  opacity: 0.75;
+}
+.tavern-export-packs {
+  max-height: 22rem;
+  overflow-y: auto;
+  margin: 0.5rem 0;
+}
+.tavern-export-group {
+  margin: 0 0 0.5rem;
+  padding: 0.25rem 0.5rem;
+}
+.tavern-export-pack {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2px 0;
+}
+.tavern-export-pack .label {
+  flex: 1;
+}
+.tavern-export-pack .meta {
+  font-size: var(--font-size-12, 12px);
+  opacity: 0.7;
+}
+.tavern-export-option {
+  display: block;
+  margin: 0.35rem 0;
+}
+.tavern-export-option .hint {
+  margin-left: 1.6rem;
+}
+.tavern-export-file {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.tavern-export-file input {
+  flex: 1;
+}

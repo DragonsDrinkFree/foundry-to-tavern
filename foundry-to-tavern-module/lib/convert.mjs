@@ -10,6 +10,7 @@
 
 import { compileExpr, compileMapping, RulesError, scopeFor, childScope, truthy } from './expr.mjs';
 import { canHold, CORE_TYPES, DOCUMENT_NAME_MAX, normalize } from './schema.mjs';
+import { compileAssets, filePath, isImage, selected, targetPath } from './assets.mjs';
 
 export { RulesError } from './expr.mjs';
 
@@ -124,7 +125,7 @@ function compileTypeMap(spec, at, partials) {
  */
 export function compileRules(json) {
   if (!isObject(json)) throw new RulesError('a rules file is a JSON object');
-  onlyKeys(json, ['$schema', 'format', 'version', 'id', 'name', 'description', 'authors', 'source', 'target', 'options', 'tables', 'partials', 'schema', 'types', 'embedded'], '');
+  onlyKeys(json, ['$schema', 'format', 'version', 'id', 'name', 'description', 'authors', 'source', 'target', 'options', 'tables', 'partials', 'schema', 'types', 'embedded', 'assets'], '');
   if (json.format !== RULES_FORMAT) throw new RulesError(`"format" must be "${RULES_FORMAT}" (is this a rules file?)`, 'format');
   if (json.version !== RULES_VERSION) throw new RulesError(`version ${JSON.stringify(json.version)} isn't supported; this module reads version ${RULES_VERSION}`, 'version');
   if (typeof json.name !== 'string' || !json.name.trim()) throw new RulesError('"name" is required', 'name');
@@ -152,6 +153,7 @@ export function compileRules(json) {
     schema: json.schema ?? null,
     types,
     embedded: compileTypeMap(json.embedded, 'embedded', partials),
+    assets: compileAssets(json.assets),
   };
 }
 
@@ -224,9 +226,13 @@ class Notes {
  * Convert exports by compiled rules.
  * @param {ReturnType<typeof compileRules>} rules
  * @param {{ name?: string, json: object }[]} files  parsed export files
- * @param {{ lang?: object, schema?: object, wrap?: boolean, idPrefix?: string }} [opts]
+ * @param {{ lang?: object, schema?: object, wrap?: boolean, idPrefix?: string, assets?: { files?: Iterable<string>|object, left?: Record<string, string>, stored?: Map<string, string>, folder?: string } }} [opts]
  *   `schema`: target types (schemaFromManifest), used before the rules file's own; `wrap`: put each
  *   pack in a folder named for it (default: when converting more than one, or the rules say so).
+ *   `assets`: the pictures there are to upload (`files`, Foundry paths: a bundle's), where they were
+ *   stored once uploaded (`stored`, Foundry path → campaign path), why the bundle hasn't some (`left`,
+ *   path → reason), and a `folder` in place of the rules'.
+ *   Without `stored`, a picture there is to upload points where it will go.
  */
 export function convert(rules, files, opts = {}) {
   const notes = new Notes();
@@ -241,10 +247,38 @@ export function convert(rules, files, opts = {}) {
   const tables = rules.tables;
   const unknownTypes = new Set();
 
+  // Pictures (the `asset` transform): each Foundry path once, with the campaign path it goes to.
+  const assetRules = { ...rules.assets, ...(opts.assets?.folder ? { folder: opts.assets.folder } : {}) };
+  const rawFiles = opts.assets?.files;
+  const haveFiles = rawFiles == null ? null : new Set(typeof rawFiles[Symbol.iterator] === 'function' && typeof rawFiles !== 'string' ? rawFiles : Object.keys(rawFiles));
+  const stored = opts.assets?.stored ?? null;
+  const refs = new Map();
+  const targets = new Set();
+  const assetFor = (ref, docName) => {
+    if (ref == null || ref === '' || typeof ref !== 'string') return '';
+    const path = filePath(ref);
+    if (!path) { notes.add('Pictures held in the data itself (data: addresses) were left out', docName); return ''; }
+    if (!isImage(path)) { notes.add('Files that aren’t pictures were left out (Tavern Moot keeps pictures only)', `${docName}: ${path}`); return ''; }
+    if (!selected(path, assetRules)) { notes.add('Pictures the rules’ "assets" leave out', `${docName}: ${path}`); return ''; }
+    let r = refs.get(path);
+    if (!r) {
+      // Two Foundry files never share a campaign path (likely with "layout": "flat").
+      let target = targetPath(path, assetRules);
+      for (let n = 2; targets.has(target.toLowerCase()); n++) target = targetPath(path, assetRules).replace(/(\.[a-z0-9]+)$/i, ` (${hash(path).slice(0, 6)}${n > 2 ? `-${n}` : ''})$1`);
+      targets.add(target.toLowerCase());
+      r = { path, target, available: haveFiles ? haveFiles.has(path) : false, uses: 0, example: docName };
+      refs.set(path, r);
+    }
+    r.uses++;
+    if (stored ? stored.has(path) : r.available) return stored ? stored.get(path) : r.target;
+    return assetRules.missing === 'keep' ? r.target : '';
+  };
+
   const ctxFor = (docName) => ({
     tables,
     lang: opts.lang,
     count: (message, example) => notes.add(message, example ?? docName),
+    asset: (ref) => assetFor(ref, docName),
   });
 
   /** Data checked against the target type, with what had to change counted. */
@@ -430,8 +464,26 @@ export function convert(rules, files, opts = {}) {
       }
     }
   }
+  const assets = [...refs.values()];
+  if (assets.length) {
+    const kept = assetRules.missing === 'keep';
+    const absent = assets.filter((r) => !r.available);
+    const failed = stored ? assets.filter((r) => r.available && !stored.has(r.path)) : [];
+    if (!haveFiles) {
+      for (const r of assets) notes.add(`The documents use ${assets.length} pictures, which these exports don’t carry; ${kept ? `their fields point at ${assetRules.folder}/… for you to upload them there` : 'their fields were left empty'}. The Foundry Export tab brings them.`, `${r.example}: ${r.path}`);
+    } else {
+      // Left out on purpose when exporting (Foundry's own icons, say): worth knowing. Missing: a warning.
+      const left = opts.assets?.left ?? {};
+      for (const r of absent) {
+        const why = left[r.path];
+        const meant = why && why !== 'not found' && !why.startsWith('could not');
+        notes.add(`Pictures the bundle doesn’t have (${why ?? 'not found in Foundry'}): ${kept ? 'pointed at where they would be' : 'left empty'}`, `${r.example}: ${r.path}`, meant ? 'info' : 'warning');
+      }
+    }
+    for (const r of failed) notes.add(`Pictures that could not be uploaded: ${kept ? 'pointed at where they would be' : 'left empty'}`, `${r.example}: ${r.path}`, 'warning');
+  }
   if (!checked) notes.add('No target schema: data was not checked against the system’s fields. Add one to the rules file (tools/schema.mjs) or load the system’s tavern.json.', null, 'warning');
-  return { entries, packs, notes: notes.list(), problems, stats };
+  return { entries, packs, notes: notes.list(), problems, stats, assets };
 }
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : 0);

@@ -4,6 +4,12 @@ A rules file tells the Foundry import widget how to turn one Foundry system's ex
 into one Tavern Moot system's documents. It is plain JSON. It contains no code, because package
 pages may not run code from outside the package.
 
+The same rules serve both of the widget's tabs. *Compendium Importer* reads the JSON files mana's
+Compendium Importer writes. *Foundry Export* reads a bundle from this project's Foundry module
+([bundle format](bundle-format.md)), whose packs are in the same JSON, plus the pictures the
+documents use and the world's translations. Only the `assets` section and the `asset` transform are
+about pictures; the rest works the same on either tab.
+
 Two complete examples ship in [`rules/`](../rules):
 
 - [`dolmenwood-to-osr.json`](../rules/dolmenwood-to-osr.json) covers items, classes with level tables
@@ -55,6 +61,7 @@ left out, and the preview counts them.
 | `types`       |   yes    | Foundry type → rule, or a list of rules. See [Rules](#rules).                                                                                                                |
 | `embedded`    |          | Rules for documents embedded in another (an actor's items), when they differ from `types`. See [Embedded documents](#embedded-documents).                                    |
 | `schema`      |          | The target types' field definitions, written by `tools/schema.mjs`. Every converted document is checked against them. See [Checking against the target](#checking-against-the-target). |
+| `assets`      |          | Where pictures go in the campaign's files, and which to bring. See [Pictures](#pictures).                                                                                     |
 
 ### Options
 
@@ -292,9 +299,12 @@ expressions, so `{ "add": "$^.system.bonus" }` works.
 - `embeds` converts only the inline syntax.
 - `fixDoubled` repairs text where every character was doubled (`ttaallll` becomes `tall`), a fault
   seen in some exports. The preview counts each repair.
-- `lang` looks the value up as a localisation key in the lang files loaded with the import. It
-  gives nothing if the key isn't found, and the preview counts the misses, so add a fallback:
+- `lang` looks the value up as a localisation key in the lang files loaded with the import (a
+  bundle brings the world's own). It gives nothing if the key isn't found, and the preview counts
+  the misses, so add a fallback:
   `[{ "coalesce": [["$nameKey", "lang"], ["$id", "humanize"]] }]`.
+- `asset` takes a Foundry file path and gives the campaign path the picture is uploaded to. See
+  [Pictures](#pictures).
 
 **Lookups:**
 
@@ -337,10 +347,61 @@ expressions, so `{ "add": "$^.system.bonus" }` works.
 - **Where each entry came from:** `flags["foundry-to-tavern"].source` gives
   `{ pack, id, type, system }`, plus `embedded`, or `extra` and `index`, for documents that weren't
   top-level.
-- **Pictures** aren't copied, since Foundry's image paths don't exist in the campaign. To keep
-  them, map them yourself:
-  `"img": ["$img", { "prefix": "foundry/" }]`. Then upload the images to `foundry/…` in the
-  campaign's storage.
+- **Pictures** come across only through the `asset` transform, on the Foundry Export tab. See
+  [Pictures](#pictures).
+
+## Pictures
+
+Foundry documents name their pictures by path (`img`, `prototypeToken.texture.src`,
+`background.src`…). Those paths mean nothing in a campaign. The `asset` transform turns one into
+the campaign path the picture is uploaded to:
+
+```json
+"data": {
+  "img": ["$img", "asset"],
+  "portrait": [{ "if": ["$img", { "test": "^icons/" }], "then": "$prototypeToken.texture.src", "else": "$img" }, "asset"]
+}
+```
+
+The second line uses the token art when the portrait is one of Foundry's stock icons.
+
+**On the Foundry Export tab,** the bundle carries the pictures. The preview shows each document
+pointing at where its picture will go. When you create the archive, the widget first uploads every
+picture some document uses, each once (`tavern.assets.uploadMany`, TM ADR 0131). It then points
+the documents at the paths the pictures were stored under. Those may differ from the planned path
+if the server stored a renamed copy. A picture that fails to upload leaves its field empty, and
+the status says how many failed. Creating the archive again retries them; pictures already there
+are kept, not sent again.
+
+**On the Compendium Importer tab,** there are no pictures to upload. Fields mapped with `asset`
+are left empty, unless `"missing": "keep"` (below) points them where the pictures would be.
+
+The `assets` section says where pictures go and which to bring. Every key is optional:
+
+```json
+"assets": {
+  "folder": "foundry/ose",
+  "layout": "paths",
+  "exclude": ["icons/svg/"],
+  "ifExists": "skip",
+  "missing": "drop"
+}
+```
+
+| Key        | Default      | What it does                                                                                                                                                                                                                                                                                                                       |
+| ---------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `folder`   | `"foundry"`  | The campaign folder pictures go under. It may start with another storage, as in `"maps-nas:foundry"`. It can be up to 7 folders deep. The widget's Pictures step can change it for one import.                                                                                                                                    |
+| `layout`   | `"paths"`    | `"paths"` keeps Foundry's folders under `folder`: `modules/x/art/goblin.webp` becomes `foundry/ose/modules/x/art/goblin.webp`. `"flat"` puts every file straight in `folder`. Two different files with the same name are then kept apart by a suffix.                                                                            |
+| `include`  | (everything) | Foundry path beginnings to bring, such as `["modules/", "worlds/"]`.                                                                                                                                                                                                                                                              |
+| `exclude`  | (nothing)    | Foundry path beginnings to leave out, such as `["icons/svg/"]` for Foundry's placeholder icons.                                                                                                                                                                                                                                  |
+| `ifExists` | `"skip"`     | When a picture of that name is already in the campaign: `"skip"` keeps it if it is the same picture and otherwise stores a renamed copy; `"replace"` writes over it; `"rename"` always stores a copy. `"skip"` and `"replace"` need a server with `core.asset-upload`; on an older one, the widget offers to upload copies instead. The widget's Pictures step can change it. |
+| `missing`  | `"drop"`     | A picture there is nothing to upload for: one not in the bundle, one that failed, or any picture on the Compendium Importer tab. `"drop"` leaves the field empty. `"keep"` points it where the picture would be uploaded, for you to upload it there yourself.                                                                  |
+
+Paths are made valid campaign paths as they are planned. Characters a campaign path can't hold
+become `-`. A path more than eight folders deep has its deepest folders merged into one. A web
+address (`https://host/a/b.png`) goes under `web/host/a/`. Only pictures come across (png, jpg,
+webp, gif, avif, svg); the preview notes anything else a rule maps with `asset`, such as PDFs and
+audio.
 
 ## Checking against the target
 
@@ -367,17 +428,21 @@ Without a schema, nothing is checked, and the preview warns.
 
 ## Writing and testing rules
 
-1. Export a compendium from Foundry with mana's Compendium Importer.
+1. Export a compendium from Foundry, with mana's Compendium Importer or this project's Foundry
+   module (a bundle).
 2. Read a few documents from it. Their fields are under `system`.
 3. Write the rules, starting with `"*": { "skip": "…" }` and adding one type at a time.
 4. Run them outside the app:
 
    ```sh
    node tools/convert.mjs --rules rules/my-rules.json export.json --schema <system>/tavern.json [--lang en.json] [--out archive.json]
+   node tools/convert.mjs --rules rules/my-rules.json bundle.zip --schema <system>/tavern.json
    ```
 
-   This prints the counts by type, and every note and problem with examples. `--out` writes an
-   archive file you can read through, or ship in a package. With `--json` you get it all as data.
+   This prints the counts by type, and every note and problem with examples. With a bundle, it
+   also prints the pictures that would be uploaded and where to. Nothing is uploaded from the
+   command line. `--out` writes an archive file you can read through, or ship in a package. With
+   `--json` you get it all as data, including the planned uploads.
 
 5. Mistakes in the rules file are reported with their location before anything is converted, for
    example: `types.Weapon.data.melee.damage[2]: "trunc" is not a transform (did you mean "truncate"?)`.

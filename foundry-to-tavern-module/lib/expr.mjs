@@ -445,6 +445,8 @@ const TRANSFORMS = {
     if (r.fixed) c?.count?.('Text with doubled characters repaired');
     return r.text;
   },
+  /** A Foundry picture path, as the campaign path it is (or will be) uploaded to; "" if it won't be. */
+  asset: () => (v, s, c) => (c?.asset ? c.asset(isEmpty(v) ? '' : toText(v)) : ''),
   /** A localisation key resolved against the lang files given with the import; nothing if absent. */
   lang: () => (v, s, c) => {
     if (isEmpty(v)) return undefined;

@@ -8,6 +8,7 @@
   "source": { "systems": ["ose"] },
   "target": { "system": "osr" },
   "options": { "folders": "all" },
+  "assets": { "folder": "foundry/ose", "exclude": ["icons/svg/"] },
   "tables": {
     "saveLabels": { "death": "Death", "wand": "Wands", "paralysis": "Paralysis", "breath": "Breath", "spell": "Spells" },
     "spellSources": {
@@ -23,6 +24,7 @@
   "partials": {
     "physical": {
       "data": {
+        "img": ["$img", "asset"],
         "identified": true,
         "quantity": ["$system.quantity.value", "int", { "default": 1 }, { "atLeast": 0 }],
         "weight": ["$system.weight", "number", { "default": 0 }, { "atLeast": 0 }, { "div": 10 }, { "round": 2 }],
@@ -109,6 +111,7 @@
     "spell": {
       "type": "osr.spell",
       "data": {
+        "img": ["$img", "asset"],
         "identified": true,
         "level": ["$system.lvl", "int", { "default": 1 }, { "atLeast": 1 }],
         "sources": { "list": [["$system.class", { "lookup": "spellSources", "else": "arcane" }]] },
@@ -134,6 +137,7 @@
     "ability": {
       "type": "osr.ability",
       "data": {
+        "img": ["$img", "asset"],
         "category": "Special",
         "activation": { "if": "$system.roll", "then": "active", "else": "passive" },
         "resolution": { "if": "$system.roll", "then": "formula", "else": "none" },
@@ -152,6 +156,7 @@
       "type": "osr.creature",
       "embedded": { "except": ["weapon", "ability"] },
       "data": {
+        "portrait": [{ "if": ["$img", { "test": "^icons/" }], "then": "$prototypeToken.texture.src", "else": "$img" }, "asset"],
         "level": ["$system.hp.hd", { "match": "^\\s*(\\d+)" }, "int", { "default": 1 }],
         "hpDice": ["$system.hp.hd", { "default": "1d8" }, "string", { "truncate": 20 }],
         "hp.value": ["$system.hp.value", "number", { "default": 0 }, { "atLeast": 0 }],
@@ -215,6 +220,7 @@
     "character": {
       "type": "osr.character",
       "data": {
+        "img": ["$img", "asset"],
         "abilities.str.value": ["$system.scores.str.value", "int"],
         "abilities.dex.value": ["$system.scores.dex.value", "int"],
         "abilities.con.value": ["$system.scores.con.value", "int"],

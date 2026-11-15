@@ -8,7 +8,7 @@
 // --types keeps only the types named (with or without the package prefix), to keep the file small.
 
 import fs from 'node:fs';
-import { schemaFromManifest } from '../lib/schema.mjs';
+import { schemaFromManifest } from '../foundry-to-tavern-module/lib/schema.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {

@@ -5,9 +5,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { compileRules, convert } from '../lib/convert.mjs';
-import { schemaFromManifest } from '../lib/schema.mjs';
-import { mergeLang } from '../lib/text.mjs';
+import { compileRules, convert } from '../foundry-to-tavern-module/lib/convert.mjs';
+import { schemaFromManifest } from '../foundry-to-tavern-module/lib/schema.mjs';
+import { mergeLang } from '../foundry-to-tavern-module/lib/text.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const at = (...p) => path.join(root, ...p);

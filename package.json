@@ -2,10 +2,10 @@
   "name": "foundry-to-tavern",
   "private": true,
   "type": "module",
-  "description": "Tavern Moot module: Foundry compendium exports to campaign archives, by a rules file.",
+  "description": "Foundry compendiums into Tavern Moot archives: a Tavern Moot import widget driven by a rules file, and a Foundry module that exports bundles with pictures.",
   "scripts": {
-    "test": "node --test test/engine.test.mjs test/fixtures.test.mjs",
+    "test": "node --test test/engine.test.mjs test/fixtures.test.mjs test/bundle.test.mjs",
     "test:widget": "node test/widget.harness.mjs",
-    "validate": "tavern validate ."
+    "validate": "tavern validate foundry-to-tavern-module"
   }
 }

@@ -1,10 +1,10 @@
 // The engine: expressions, schema checks, and conversion. `node --test test/`
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { compileExpr, scopeFor } from '../lib/expr.mjs';
-import { compileRules, convert, RulesError } from '../lib/convert.mjs';
-import { normalize, schemaFromManifest, canHold } from '../lib/schema.mjs';
-import { fixDoubled, htmlToMarkdown, humanize } from '../lib/text.mjs';
+import { compileExpr, scopeFor } from '../foundry-to-tavern-module/lib/expr.mjs';
+import { compileRules, convert, RulesError } from '../foundry-to-tavern-module/lib/convert.mjs';
+import { normalize, schemaFromManifest, canHold } from '../foundry-to-tavern-module/lib/schema.mjs';
+import { fixDoubled, htmlToMarkdown, humanize } from '../foundry-to-tavern-module/lib/text.mjs';
 
 const ev = (spec, doc = {}, ctx = {}) => compileExpr(spec, 'test')(scopeFor(doc), ctx);
 const rules = (types, extra = {}) => compileRules({ format: 'foundry-to-tavern/rules', version: 1, name: 'T', types, ...extra });

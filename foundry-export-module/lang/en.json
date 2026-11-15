@@ -1,0 +1,36 @@
+{
+  "TAVERN_EXPORT": {
+    "Button": "Export for Tavern Moot",
+    "ContextOption": "Export for Tavern Moot",
+    "GMOnly": "Only a GM can export compendiums for Tavern Moot.",
+    "NoneChosen": "Choose at least one compendium to export.",
+    "NoPack": "There is no compendium {id}.",
+    "Failed": "The export failed: {error}",
+    "Done": "Exported {packs} compendiums ({documents} documents) and {files} pictures, {size} MB. {left} files were left out (listed in the bundle and the console).",
+    "Group": { "World": "This world" },
+    "Dialog": {
+      "Title": "Export for Tavern Moot",
+      "Hint": "Choose the compendiums to export. You get one zip: drop it on the Foundry Export tab of Tavern Moot's Foundry Import widget, with a rules file for this system.",
+      "NoPacks": "This world has no compendiums.",
+      "Export": "Export",
+      "Cancel": "Cancel"
+    },
+    "Option": {
+      "Pictures": "Pictures",
+      "PicturesHint": "The pictures the documents use: portraits, icons, tokens, maps.",
+      "Core": "Foundry's own icons",
+      "CoreHint": "Files under icons/ and ui/, which come with Foundry: check their licence before using them elsewhere.",
+      "Remote": "Pictures at web addresses",
+      "RemoteHint": "Fetched from the web, which some sites refuse.",
+      "Translations": "Translations",
+      "TranslationsHint": "The world's text in its language, for rules that read localisation keys.",
+      "FileName": "File name"
+    },
+    "Progress": {
+      "Reading": "Exporting for Tavern Moot…",
+      "Pack": "Reading {label}…",
+      "Files": "Pictures: {done} of {total}",
+      "Done": "Saving the bundle…"
+    }
+  }
+}
