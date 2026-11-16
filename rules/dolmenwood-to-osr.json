@@ -545,21 +545,25 @@
     },
     "JournalEntry": [
       {
-        "when": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, "present"],
+        "when": [{ "map": "$pages", "where": ["$type", { "in": ["text", "image"] }], "to": "$" }, "present"],
         "type": "core.tome",
+        "vars": {
+          "notePages": { "map": "$pages", "where": ["$type", { "in": ["text", "image"] }], "to": "$" },
+          "pdfPages": ["$pages", { "where": [{ "get": "type" }, { "eq": "pdf" }] }, { "sortBy": "sort" }]
+        },
         "data": {
           "sections": {
             "map": ["$categories", { "sortBy": "sort" }],
             "to": { "object": { "id": "$_id", "name": ["$name", { "default": "Section" }] } }
           },
           "pages": {
-            "map": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }, { "sortBy": "sort" }],
+            "map": ["$:notePages", { "sortBy": "sort" }],
             "to": { "object": { "id": ["$_id", "ref"], "section": "$category" } }
           }
         },
         "extra": [
           {
-            "from": ["$pages", { "where": [{ "get": "type" }, { "in": ["text", "image"] }] }],
+            "from": "$:notePages",
             "type": "core.note",
             "data": {
               "body": {
@@ -583,10 +587,53 @@
                 }
               }
             }
+          },
+          {
+            "from": "$:pdfPages",
+            "place": "beside",
+            "type": "core.pdf",
+            "name": {
+              "coalesce": [
+                { "if": ["$name", { "test": ["^\\s*(pdf)?\\s*$", "i"] }, "not"], "then": "$name" },
+                { "if": ["$^.name", { "test": ["^\\s*(pdf)?\\s*$", "i"] }, "not"], "then": "$^.name" },
+                ["$src", { "replace": ["^.*/|\\.pdf$", "", "gi"] }, "humanize"]
+              ]
+            },
+            "data": { "file": ["$src", "asset", "nullIfEmpty"] }
           }
         ]
       },
-      { "skip": "a journal entry with no text or image pages (only PDFs or video, which stay in Foundry)" }
+      {
+        "when": ["$pages", { "where": [{ "get": "type" }, { "eq": "pdf" }] }, "present"],
+        "type": "core.pdf",
+        "vars": {
+          "pdfPages": ["$pages", { "where": [{ "get": "type" }, { "eq": "pdf" }] }, { "sortBy": "sort" }],
+          "first": ["$:pdfPages", "first"]
+        },
+        "name": {
+          "coalesce": [
+            { "if": ["$name", { "test": ["^\\s*(pdf)?\\s*$", "i"] }, "not"], "then": "$name" },
+            { "if": ["$:first.name", { "test": ["^\\s*(pdf)?\\s*$", "i"] }, "not"], "then": "$:first.name" },
+            ["$:first.src", { "replace": ["^.*/|\\.pdf$", "", "gi"] }, "humanize"]
+          ]
+        },
+        "data": { "file": ["$:first.src", "asset", "nullIfEmpty"] },
+        "extra": [
+          {
+            "from": ["$:pdfPages", { "slice": [1] }],
+            "place": "beside",
+            "type": "core.pdf",
+            "name": {
+              "coalesce": [
+                { "if": ["$name", { "test": ["^\\s*(pdf)?\\s*$", "i"] }, "not"], "then": "$name" },
+                ["$src", { "replace": ["^.*/|\\.pdf$", "", "gi"] }, "humanize"]
+              ]
+            },
+            "data": { "file": ["$src", "asset", "nullIfEmpty"] }
+          }
+        ]
+      },
+      { "skip": "a journal entry with no text, image or PDF pages (video, say, which stays in Foundry)" }
     ],
     "Adventure": {
       "type": "core.note",

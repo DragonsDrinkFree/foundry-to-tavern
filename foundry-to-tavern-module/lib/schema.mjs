@@ -42,6 +42,9 @@ export const CORE_TYPES = {
   // A tome holds notes as its pages (TM ADR 0104). Its data (`sections`, and `pages` naming its
   // notes by id) isn't field-shaped: `open` passes it through for Tavern Moot to check.
   'core.tome': { category: 'note', contains: ['core.note'], fields: [], open: true },
+  // A PDF from the campaign's files (TM ADR 0133): `{ file, bookmarks? }`, checked by Tavern Moot.
+  // It holds nothing, and a tome can't hold it: it sits in a folder.
+  'core.pdf': { category: 'note', contains: [], fields: [], open: true },
 };
 
 function defaultValue(f) {

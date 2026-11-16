@@ -1,4 +1,4 @@
-// The two halves together: foundry-export-module builds a bundle (zip), foundry-to-tavern-module
+// The two halves together: tavern-export builds a bundle (zip), foundry-to-tavern-module
 // opens it, converts it with pictures, and plans the uploads. Runs on the reference OSE exports
 // (skipped without them) with made-up picture bytes.
 import assert from 'node:assert/strict';
@@ -6,8 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildBundle, collectFiles, filePath as foundryFilePath, MANIFEST } from '../foundry-export-module/scripts/bundle.mjs';
-import { crc32, ZipWriter } from '../foundry-export-module/scripts/zip.mjs';
+import { buildBundle, collectFiles, filePath as foundryFilePath, MANIFEST } from '../tavern-export/scripts/bundle.mjs';
+import { crc32, ZipWriter } from '../tavern-export/scripts/zip.mjs';
 import { compileAssets, filePath, parseFolder, targetPath, uploadPlan } from '../foundry-to-tavern-module/lib/assets.mjs';
 import { openBundle } from '../foundry-to-tavern-module/lib/bundle.mjs';
 import { compileRules, convert, RulesError } from '../foundry-to-tavern-module/lib/convert.mjs';
@@ -35,6 +35,21 @@ test('zip: what the writer writes, the reader reads', async () => {
   await assert.rejects(readZip(new Blob(['not a zip at all, just text'])), /not a zip/);
 });
 
+test('zip: a large Blob goes in as itself, its CRC read a slice at a time', async () => {
+  // Over 16 MB: more than one slice. A PDF's bytes are never all held at once.
+  const big = new Uint8Array(17 * 1024 * 1024 + 5);
+  for (let i = 0; i < big.length; i++) big[i] = (i * 31 + (i >> 9)) & 0xff;
+  const z = new ZipWriter();
+  await z.add('files/a.pdf', new Blob([big]));
+  const out = z.finish();
+  const head = new DataView(await out.slice(0, 30).arrayBuffer());
+  assert.equal(head.getUint32(14, true), crc32(big));
+  assert.equal(head.getUint32(18, true), big.length);
+  const back = new Uint8Array(await (await (await readZip(out)).blob('files/a.pdf')).arrayBuffer());
+  assert.equal(back.length, big.length);
+  assert.equal(crc32(back), crc32(big));
+});
+
 test('picture paths: Foundry references to campaign paths', () => {
   // Both modules key files the same way.
   for (const ref of ['/modules/x/a%20b.webp?v=2', './worlds/w/token.png', 'https://example.com/i/x.png', 'data:image/png;base64,AAAA', '']) {
@@ -45,7 +60,8 @@ test('picture paths: Foundry references to campaign paths', () => {
   assert.equal(targetPath('modules/x/y.webp', a), 'foundry/ose/modules/x/y.webp');
   assert.equal(targetPath('a/b/c/d/e/f/g/h/i.png', a), 'foundry/ose/a/b/c/d/e/f-g-h/i.png');
   assert.equal(targetPath('a/what?.png'.replace('?', ':'), a), 'foundry/ose/a/what-.png');
-  assert.equal(targetPath('x.pdf', a), null);
+  assert.equal(targetPath('x.pdf', a), 'foundry/ose/x.pdf');
+  assert.equal(targetPath('a/b.ogg', a), null);
   assert.equal(targetPath('deep/dir/z.png', compileAssets({ folder: 'nas:imports', layout: 'flat' })), 'nas:imports/z.png');
   assert.equal(parseFolder('../up'), null);
   assert.throws(() => compileAssets({ folder: 'a/../b' }), RulesError);
@@ -53,7 +69,7 @@ test('picture paths: Foundry references to campaign paths', () => {
   // Files the documents point at, in fields and in HTML.
   const found = collectFiles({ img: 'icons/a.svg', system: { description: '<p><img src="worlds/w/map.jpg"> and <a href="x.pdf">a</a></p>' }, n: 'Plain text.' });
   assert.deepEqual([...found.keys()].sort(), ['icons/a.svg', 'worlds/w/map.jpg', 'x.pdf']);
-  assert.equal(found.get('x.pdf').kind, 'other');
+  assert.equal(found.get('x.pdf').kind, 'pdf');
 });
 
 test('convert: the asset transform, with and without pictures to upload', () => {
@@ -107,12 +123,16 @@ test('a bundle from the Foundry module, opened and converted by the widget’s c
     fetchFile: async (p) => {
       fetched.push(p);
       if (p.includes('hazrad')) return null; // one missing in Foundry
+      if (p.endsWith('.pdf')) return new Blob([new TextEncoder().encode(`%PDF-1.7 ${p}`)], { type: 'application/pdf' });
       return new Blob([new TextEncoder().encode(`picture:${p}`)], { type: 'image/webp' });
     },
   });
-  // Foundry's own icons and the PDF stay behind by default; everything else was fetched.
+  // Foundry's own icons stay behind by default; everything else was fetched, the PDFs too.
   assert.ok(!fetched.some((p) => p.startsWith('icons/')));
-  assert.ok(manifest.left.some((l) => /\.pdf$/.test(l.path) && /not a picture/.test(l.reason)));
+  const pdfPaths = Object.keys(manifest.files).filter((p) => p.endsWith('.pdf'));
+  assert.equal(pdfPaths.length, 3);
+  assert.equal(manifest.files[pdfPaths[0]].type, 'application/pdf');
+  assert.ok(!manifest.left.some((l) => /\.pdf$/.test(l.path)));
   assert.ok(manifest.left.some((l) => /hazrad/.test(l.path) && l.reason === 'not found'));
   assert.equal(manifest.packs.length, 3);
 
@@ -135,6 +155,11 @@ test('a bundle from the Foundry module, opened and converted by the widget’s c
   assert.equal(giant.data.portrait, 'foundry/ose/modules/ose-theholeintheoak/artwork/tokens/giant_lizard_man_figment.Token.webp');
   const one = plan.find((p) => p.from === 'modules/ose-theholeintheoak/artwork/tokens/giant_lizard_man_figment.Token.webp');
   assert.equal(await (await bundle.picture(one.from)).text(), `picture:${one.from}`);
+  // The PDFs: each a PDF note pointing where its file goes, planned as a PDF, read back whole.
+  const pdfPlan = plan.filter((p) => p.kind === 'pdf');
+  assert.equal(pdfPlan.length, 3);
+  assert.deepEqual(out.entries.filter((e) => e.type === 'core.pdf').map((e) => e.data.file).sort(), pdfPlan.map((p) => p.path).sort());
+  assert.equal(await (await bundle.picture(pdfPlan[0].from)).text(), `%PDF-1.7 ${pdfPlan[0].from}`);
   assert.equal(out.entries.find((e) => e.name === 'Hazrad the Unholy').data.portrait, '');
   // The manifest is in the zip under its name, as the format says.
   assert.ok((await readZip(file)).has(MANIFEST));

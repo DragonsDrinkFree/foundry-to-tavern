@@ -10,7 +10,7 @@
 
 import { compileExpr, compileMapping, RulesError, scopeFor, childScope, truthy } from './expr.mjs';
 import { canHold, CORE_TYPES, DOCUMENT_NAME_MAX, normalize } from './schema.mjs';
-import { compileAssets, filePath, isImage, selected, targetPath } from './assets.mjs';
+import { compileAssets, filePath, isPdf, kindOf, selected, targetPath } from './assets.mjs';
 import { LINK_RE, REF_RE } from './text.mjs';
 
 export { RulesError } from './expr.mjs';
@@ -288,6 +288,8 @@ class Notes {
  *   stored once uploaded (`stored`, Foundry path → campaign path), why the bundle hasn't some (`left`,
  *   path → reason), and a `folder` in place of the rules'.
  *   Without `stored`, a picture there is to upload points where it will go.
+ *   `pdfs`: the server keeps PDFs and PDF notes (`core.pdf`, TM ADR 0133; default true). Without
+ *   it, `core.pdf` entries are left out and the `asset` transform gives nothing for a PDF.
  *   `refs`: the server remaps ids inside data on import (`core.import-refs`, TM ADR 0132; default
  *   true). Then Foundry links and `ref`s to documents in this import become their entry ids;
  *   without it, links keep only their label and tomes get no layout.
@@ -314,12 +316,23 @@ export function convert(rules, files, opts = {}) {
   const targets = new Set();
   // Foundry `_id` → the entry it became, for links and `ref`s (resolved once everything is made).
   const foundryIds = new Map();
+  const pdfs = opts.pdfs !== false;
+  // A server without PDF notes: they're left out (they hold nothing, so they go alone), and links
+  // to them keep only their label.
+  const withoutPdfs = (made, docName) => {
+    const gone = new Set(made.filter((e) => e.type === 'core.pdf').map((e) => e.id));
+    if (!gone.size) return made;
+    for (const [fid, id] of foundryIds) if (gone.has(id)) foundryIds.delete(fid);
+    notes.add('This Tavern Moot has no PDF notes (core.pdf), so PDFs were left out', docName, 'warning');
+    return made.filter((e) => !gone.has(e.id));
+  };
   const assetFor = (ref, docName) => {
     if (ref == null || ref === '' || typeof ref !== 'string') return '';
     const path = filePath(ref);
     if (!path) { notes.add('Pictures held in the data itself (data: addresses) were left out', docName); return ''; }
-    if (!isImage(path)) { notes.add('Files that aren’t pictures were left out (Tavern Moot keeps pictures only)', `${docName}: ${path}`); return ''; }
-    if (!selected(path, assetRules)) { notes.add('Pictures the rules’ "assets" leave out', `${docName}: ${path}`); return ''; }
+    if (!kindOf(path)) { notes.add('Files that aren’t pictures or PDFs were left out (Tavern Moot keeps only those)', `${docName}: ${path}`); return ''; }
+    if (isPdf(path) && !pdfs) return '';
+    if (!selected(path, assetRules)) { notes.add('Files the rules’ "assets" leave out', `${docName}: ${path}`); return ''; }
     let r = refs.get(path);
     if (!r) {
       // Two Foundry files never share a campaign path (likely with "layout": "flat").
@@ -514,10 +527,12 @@ export function convert(rules, files, opts = {}) {
       }
       const folder = rules.options.folders !== 'none' && doc.folder && folderIds.has(doc.folder) ? folderIds.get(doc.folder) : root;
       try {
-        const made = build(rule, scope, ctx, {
+        let made = build(rule, scope, ctx, {
           idBase: `${prefix}-${doc._id ?? `n${i}`}`, parentId: folder, holderType: null,
           sourceRef: { pack: pack.key, id: doc._id ?? null, type: key, system: pack.system },
         });
+        if (!pdfs) made = withoutPdfs(made, docName);
+        if (!made.length) { summary.skipped++; continue; }
         entries.push(...made);
         for (const e of made) tally(e.type);
       } catch (err) {
@@ -534,17 +549,17 @@ export function convert(rules, files, opts = {}) {
     const absent = assets.filter((r) => !r.available);
     const failed = stored ? assets.filter((r) => r.available && !stored.has(r.path)) : [];
     if (!haveFiles) {
-      for (const r of assets) notes.add(`The documents use ${assets.length} pictures, which these exports don’t carry; ${kept ? `their fields point at ${assetRules.folder}/… for you to upload them there` : 'their fields were left empty'}. The Foundry Export tab brings them.`, `${r.example}: ${r.path}`);
+      for (const r of assets) notes.add(`The documents use ${assets.length} pictures and PDFs, which these exports don’t carry; ${kept ? `their fields point at ${assetRules.folder}/… for you to upload them there` : 'their fields were left empty'}. The Foundry Export tab brings them.`, `${r.example}: ${r.path}`);
     } else {
       // Left out on purpose when exporting (Foundry's own icons, say): worth knowing. Missing: a warning.
       const left = opts.assets?.left ?? {};
       for (const r of absent) {
         const why = left[r.path];
         const meant = why && why !== 'not found' && !why.startsWith('could not');
-        notes.add(`Pictures the bundle doesn’t have (${why ?? 'not found in Foundry'}): ${kept ? 'pointed at where they would be' : 'left empty'}`, `${r.example}: ${r.path}`, meant ? 'info' : 'warning');
+        notes.add(`Files the bundle doesn’t have (${why ?? 'not found in Foundry'}): ${kept ? 'pointed at where they would be' : 'left empty'}`, `${r.example}: ${r.path}`, meant ? 'info' : 'warning');
       }
     }
-    for (const r of failed) notes.add(`Pictures that could not be uploaded: ${kept ? 'pointed at where they would be' : 'left empty'}`, `${r.example}: ${r.path}`, 'warning');
+    for (const r of failed) notes.add(`Files that could not be uploaded: ${kept ? 'pointed at where they would be' : 'left empty'}`, `${r.example}: ${r.path}`, 'warning');
   }
   if (!checked) notes.add('No target schema: data was not checked against the system’s fields. Add one to the rules file (tools/schema.mjs) or load the system’s tavern.json.', null, 'warning');
   return { entries, packs, notes: notes.list(), problems, stats, assets };

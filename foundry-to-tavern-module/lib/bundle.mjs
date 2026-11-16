@@ -1,6 +1,6 @@
 // Opening an export bundle from the Foundry module "Export for Tavern Moot" (docs/bundle-format.md):
 // its manifest, its packs (the same JSON mana's Compendium Importer writes) and translations read
-// now; its pictures only when they're uploaded.
+// now; its pictures and PDFs only when they're uploaded.
 
 import { readExport } from './convert.mjs';
 import { readZip } from './zip.mjs';
@@ -53,7 +53,7 @@ export async function openBundle(file) {
     lang,
     files,
     left: Array.isArray(manifest.left) ? manifest.left.filter(isObject) : [],
-    /** A picture's bytes, by its Foundry path. */
+    /** A picture's or PDF's bytes, by its Foundry path (a slice of the zip: nothing is read yet). */
     picture: (path) => {
       const f = files[path];
       if (!f) return Promise.reject(new Error(`${path} is not in the bundle`));

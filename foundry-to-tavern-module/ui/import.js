@@ -3,7 +3,7 @@
 // "Foundry Export" takes the zip bundle our Foundry module writes, whose pictures are uploaded to
 // the campaign's files (TM ADR 0131) before the archive is written. Everything is converted here,
 // in the page, by lib/convert.mjs.
-import { ASSET_MAX_BYTES, parseFolder, UPLOAD_BATCH, uploadPlan } from '../lib/assets.mjs';
+import { kindOf, maxBytesFor, parseFolder, UPLOAD_BATCH, UPLOAD_BATCH_BYTES, uploadPlan } from '../lib/assets.mjs';
 import { openBundle } from '../lib/bundle.mjs';
 import { compileRules, convert, readExport, RULES_FORMAT, slug } from '../lib/convert.mjs';
 import { schemaFromManifest } from '../lib/schema.mjs';
@@ -30,6 +30,7 @@ const state = {
   system: null,
   isGm: true,
   importRefs: false, // the server carries ids through an import (core.import-refs, TM ADR 0132)
+  pdfs: true, // the server has PDF notes (core.pdf, TM ADR 0133); asked at start
   result: null,
   busy: false,
 };
@@ -253,7 +254,7 @@ function showFiles() {
   )));
 }
 
-/** The bundle: where it's from, its packs (each may be left out), its pictures. */
+/** The bundle: where it's from, its packs (each may be left out), its pictures and PDFs. */
 function showBundle() {
   const b = state.bundle;
   const box = $('bundle');
@@ -261,8 +262,9 @@ function showBundle() {
   const m = b.manifest;
   const s = m.source ?? {};
   const when = m.createdAt ? new Date(m.createdAt).toLocaleString() : null;
-  const pictures = Object.values(b.files);
-  const bytes = pictures.reduce((n, f) => n + (f.size || 0), 0);
+  const files = Object.entries(b.files);
+  const bytes = files.reduce((n, [, f]) => n + (f.size || 0), 0);
+  const pdfCount = files.filter(([path]) => kindOf(path) === 'pdf').length;
   const packRows = b.packs.map((p) => el('li', {},
     el('input', { type: 'checkbox', checked: b.chosen.has(p.meta.file), title: 'Convert this compendium', onchange: (e) => { if (e.target.checked) b.chosen.add(p.meta.file); else b.chosen.delete(p.meta.file); refresh(); } }),
     el('span', { className: 'kind', textContent: p.info.kind ?? p.meta.type ?? 'pack' }),
@@ -280,7 +282,7 @@ function showBundle() {
       el('button', { type: 'button', className: 'x', title: 'Remove', textContent: '✕', onclick: () => { state.bundle = null; refresh(); } }),
     ),
     el('ul', { className: 'files' }, ...packRows),
-    el('p', { className: 'muted small', textContent: `${pictures.length} pictures (${mb(bytes)})${b.lang.length ? ` · translations (${b.lang.map((l) => l.name.split('/').pop()).join(', ')})` : ''}${b.left.length ? ` · ${b.left.length} files left out in Foundry` : ''}` }),
+    el('p', { className: 'muted small', textContent: `${fileCount(files.length - pdfCount, pdfCount)} (${mb(bytes)})${b.lang.length ? ` · translations (${b.lang.map((l) => l.name.split('/').pop()).join(', ')})` : ''}${b.left.length ? ` · ${b.left.length} files left out in Foundry` : ''}` }),
     b.left.length ? el('details', {}, el('summary', { className: 'small', textContent: 'Left out when exporting' }),
       el('ul', { className: 'examples small' }, ...[...reasons].map(([r, n]) => el('li', { textContent: `${r}: ${n}` })),
         ...b.left.slice(0, 50).map((l) => el('li', { className: 'muted', textContent: `${l.path} — ${l.reason}` })),
@@ -318,7 +320,7 @@ function convertNow(stored = null) {
   const langs = [...(usesBundle() ? state.bundle.lang : []), ...state.lang];
   const lang = langs.length ? mergeLang(...langs.map((l) => l.json)) : undefined;
   const assets = usesBundle() ? { files: picturesOn() ? state.bundle.files : {}, left: Object.fromEntries(state.bundle.left.map((l) => [l.path, l.reason])), folder: assetFolder() ?? undefined, ...(stored ? { stored } : {}) } : undefined;
-  return convert(state.rules.compiled, sources(), { schema, lang, assets, refs: state.importRefs, wrap: $('wrap').checked });
+  return convert(state.rules.compiled, sources(), { schema, lang, assets, refs: state.importRefs, pdfs: state.pdfs, wrap: $('wrap').checked });
 }
 
 function runConversion() {
@@ -383,7 +385,16 @@ function showTree(entries) {
   $('tree').replaceChildren(...top.childNodes);
 }
 
-// ---- pictures ----
+// ---- pictures and PDFs ----
+
+/** "3 pictures and 1 PDF". */
+function fileCount(pictures, pdfs) {
+  const parts = [];
+  if (pictures || !pdfs) parts.push(`${pictures} ${pictures === 1 ? 'picture' : 'pictures'}`);
+  if (pdfs) parts.push(`${pdfs} ${pdfs === 1 ? 'PDF' : 'PDFs'}`);
+  return parts.join(' and ');
+}
+const planCount = (plan) => { const pdfs = plan.filter((p) => p.kind === 'pdf').length; return fileCount(plan.length - pdfs, pdfs); };
 
 const currentPlan = () => (state.result && picturesOn() ? uploadPlan(state.result.assets, state.bundle) : []);
 
@@ -408,9 +419,12 @@ function showPictures() {
   const reasons = new Map();
   for (const r of absent) { const k = why.get(r.path) ?? 'not found in Foundry'; reasons.set(k, (reasons.get(k) ?? 0) + 1); }
   const absentLine = absent.length ? `; ${absent.length} the documents use aren't in the bundle (${[...reasons].map(([k, n]) => `${k}: ${n}`).join('; ')})` : '';
-  $('pictures-info').textContent = !refs.length ? 'These documents use no pictures (or the rules don’t map any).'
-    : !on ? `${refs.length} pictures are used; their fields will be ${state.rules.compiled.assets.missing === 'keep' ? 'pointed at where they would be' : 'left empty'}.`
-    : `${plan.length} pictures to upload (${mb(bytes)}) to ${assetFolder() ?? '…'}/${absentLine}. Nothing is uploaded until you create the archive.`;
+  const used = refs.filter((r) => kindOf(r.path) === 'pdf').length;
+  const big = plan.filter((p) => p.kind === 'pdf' && p.size > 100 * 1024 * 1024).length;
+  const bigLine = big ? ` A bucket storage takes PDFs up to 100 MB; ${big === 1 ? 'one is' : `${big} are`} larger, so choose a folder on a local storage for ${big === 1 ? 'it' : 'them'}.` : '';
+  $('pictures-info').textContent = !refs.length ? 'These documents use no pictures or PDFs (or the rules don’t map any).'
+    : !on ? `${fileCount(refs.length - used, used)} are used; their fields will be ${state.rules.compiled.assets.missing === 'keep' ? 'pointed at where they would be' : 'left empty'}.`
+    : `${planCount(plan)} to upload (${mb(bytes)}) to ${assetFolder() ?? '…'}/${absentLine}. Nothing is uploaded until you create the archive.${bigLine}`;
 }
 
 $('pictures').addEventListener('change', () => refresh());
@@ -425,14 +439,23 @@ async function uploadPictures(plan, ifExists) {
   const stored = new Map();
   const failed = [];
   let kept = 0;
-  for (let i = 0; i < plan.length; i += UPLOAD_BATCH) {
-    const batch = plan.slice(i, i + UPLOAD_BATCH);
-    say(`Uploading pictures: ${i} of ${plan.length}…`);
+  // Batches of at most UPLOAD_BATCH files and about UPLOAD_BATCH_BYTES, so a large PDF goes alone.
+  const batches = [];
+  for (const p of plan) {
+    const last = batches.at(-1);
+    if (last && last.length < UPLOAD_BATCH && last.bytes + p.size <= UPLOAD_BATCH_BYTES) { last.push(p); last.bytes += p.size; }
+    else batches.push(Object.assign([p], { bytes: p.size }));
+  }
+  let done = 0;
+  for (const batch of batches) {
+    const name = batch.length === 1 ? ` (${batch[0].from.split('/').pop()}, ${mb(batch[0].size)})` : '';
+    say(`Uploading files: ${done} of ${plan.length}${name}…`);
+    done += batch.length;
     const files = [];
     const ready = [];
     for (const p of batch) {
       try {
-        if (p.size > ASSET_MAX_BYTES) throw new Error('larger than 25 MB');
+        if (p.size > maxBytesFor(p.from)) throw new Error(p.kind === 'pdf' ? 'larger than 1 GB' : 'larger than 25 MB');
         files.push({ path: p.path, file: await state.bundle.picture(p.from) });
         ready.push(p);
       } catch (err) { failed.push({ path: p.from, error: err.message ?? String(err) }); }
@@ -488,21 +511,21 @@ $('create').addEventListener('click', async () => {
   const archiveName = $('archive-name').value.trim() || defaultArchiveName();
   const target = add ? $('archive-pick').selectedOptions[0]?.textContent : archiveName;
   const plan = currentPlan();
-  if (plan.length && assetFolder() === null) { say('The pictures’ folder isn’t a folder path; see Pictures.', 'danger'); return; }
+  if (plan.length && assetFolder() === null) { say('The files’ folder isn’t a folder path; see Pictures and PDFs.', 'danger'); return; }
   let ifExists = $('if-exists').value;
   if (plan.length && !api.assets?.uploadMany) {
-    if (!(await api.ui.confirm('This version of Tavern Moot can’t upload files from a page, so the pictures will be left out. Make the archive without them?', { ok: 'Without pictures' }))) return;
+    if (!(await api.ui.confirm('This version of Tavern Moot can’t upload files from a page, so the pictures and PDFs will be left out. Make the archive without them?', { ok: 'Without them' }))) return;
     plan.length = 0;
   }
   if (plan.length && ifExists !== 'rename') {
     let can = false;
     try { can = await api.features.has('core.asset-upload'); } catch { can = false; }
     if (!can) {
-      if (!(await api.ui.confirm('This server can’t tell whether a picture is already there, so pictures uploaded before will be stored again as copies. Upload them anyway?', { ok: 'Upload copies' }))) return;
+      if (!(await api.ui.confirm('This server can’t tell whether a file is already there, so files uploaded before will be stored again as copies. Upload them anyway?', { ok: 'Upload copies' }))) return;
       ifExists = 'rename';
     }
   }
-  const pics = plan.length ? ` and upload **${plan.length}** pictures (${mb(plan.reduce((n, p) => n + p.size, 0))}) to **${assetFolder()}**` : '';
+  const pics = plan.length ? ` and upload **${planCount(plan)}** (${mb(plan.reduce((n, p) => n + p.size, 0))}) to **${assetFolder()}**` : '';
   if (!(await api.ui.confirm(`Put **${count}** entries (documents and folders) into ${add ? 'the archive' : 'a new archive,'} **${target}**${pics}?${warn}`, { ok: add ? 'Add' : 'Create' }))) return;
   state.busy = true;
   $('create').disabled = true;
@@ -511,7 +534,7 @@ $('create').addEventListener('click', async () => {
     let entries = res.entries;
     if (plan.length) {
       upload = await uploadPictures(plan, ifExists);
-      // Point the documents at where each picture was stored (a renamed copy, perhaps).
+      // Point the documents at where each file was stored (a renamed copy, perhaps).
       entries = convertNow(upload.stored).entries;
     }
     say('Writing the archive…');
@@ -520,12 +543,12 @@ $('create').addEventListener('click', async () => {
     } else {
       await api.archives.create({ name: archiveName.slice(0, 100), access: $('access').value, entries });
     }
-    const picLine = upload ? ` Pictures: ${upload.stored.size - upload.kept} uploaded${upload.kept ? `, ${upload.kept} already there` : ''}${upload.failed.length ? `, ${upload.failed.length} failed (their fields are empty; try again to retry them)` : ''}.` : '';
+    const picLine = upload ? ` Files: ${upload.stored.size - upload.kept} uploaded${upload.kept ? `, ${upload.kept} already there` : ''}${upload.failed.length ? `, ${upload.failed.length} failed (their fields are empty; try again to retry them)` : ''}.` : '';
     say(add ? `Added ${entries.length} entries to ${target}.${picLine}` : `Made the archive "${archiveName}" with ${entries.length} entries.${picLine} Open it from the Archives window to import what you need.`, upload?.failed.length ? 'warn' : 'ok');
-    if (upload?.failed.length) console.warn('Pictures that failed to upload:', upload.failed);
+    if (upload?.failed.length) console.warn('Files that failed to upload:', upload.failed);
     await loadArchives();
   } catch (err) {
-    const done = upload ? ` The ${upload.stored.size} pictures uploaded stay in the campaign's files; trying again keeps them.` : '';
+    const done = upload ? ` The ${upload.stored.size} files uploaded stay in the campaign's files; trying again keeps them.` : '';
     say(`Nothing was written: ${String(err.message ?? err).replace(/\.$/, '')}.${done}`, 'danger');
   } finally {
     state.busy = false;
@@ -582,7 +605,7 @@ function refresh() {
   lastNameDefault = name;
   if (state.rules) $('access').value = $('access').dataset.touched ? $('access').value : state.rules.compiled.options.access;
   $('create').disabled = !state.result || !state.result.entries.length || !state.isGm || state.busy;
-  $('create').textContent = picturesOn() && currentPlan().length ? 'Upload pictures and create archive' : 'Create archive';
+  $('create').textContent = picturesOn() && currentPlan().length ? 'Upload files and create archive' : 'Create archive';
 }
 $('access').addEventListener('change', () => { $('access').dataset.touched = '1'; });
 
@@ -597,6 +620,7 @@ async function start() {
       state.isGm = viewer?.role === 'gm';
     } catch { state.isGm = false; }
     try { state.importRefs = !!(await api.features.has('core.import-refs')); } catch { state.importRefs = false; }
+    try { state.pdfs = !!(await api.features.has('core.pdf')); } catch { state.pdfs = false; }
     $('gm-only').hidden = state.isGm;
     await Promise.all([loadSaved(), loadArchives()]);
   }

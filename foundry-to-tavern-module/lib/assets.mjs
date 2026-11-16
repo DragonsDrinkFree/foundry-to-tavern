@@ -1,5 +1,5 @@
-// Pictures: from the paths Foundry documents use to the campaign file paths they're uploaded to
-// (TM ADR 0131). Pure, like convert.mjs: the rules file's "assets" section, the `asset` transform,
+// Pictures and PDFs: from the paths Foundry documents use to the campaign file paths they're
+// uploaded to (TM ADR 0131; PDFs, ADR 0133). Pure, like convert.mjs: the rules file's "assets" section, the `asset` transform,
 // and the widget's upload plan all come through here.
 
 import { RulesError } from './expr.mjs';
@@ -10,12 +10,21 @@ const MAX_FOLDERS = 8;
 const MAX_SEGMENT = 100;
 const MAX_PATH = 340;
 export const ASSET_MAX_BYTES = 25 * 1024 * 1024;
+/** A PDF may be up to 1 GB on a local storage (TM ADR 0134); a bucket storage takes 100 MB. */
+export const PDF_MAX_BYTES = 1024 * 1024 * 1024;
 export const UPLOAD_BATCH = 50; // uploadMany takes 500; smaller batches show progress
+/** A batch also ends once it holds this much, so a large PDF goes up on its own. */
+export const UPLOAD_BATCH_BYTES = 64 * 1024 * 1024;
 
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 export const isRemote = (p) => SCHEME_RE.test(p);
 export const extOf = (p) => /\.([a-z0-9]+)$/i.exec(p)?.[1].toLowerCase() ?? '';
 export const isImage = (p) => IMAGE_EXT.has(extOf(p));
+export const isPdf = (p) => extOf(p) === 'pdf';
+/** What Tavern Moot keeps of a file: 'image', 'pdf', or null. */
+export const kindOf = (p) => (isImage(p) ? 'image' : isPdf(p) ? 'pdf' : null);
+/** The most a file of this path's kind may be. */
+export const maxBytesFor = (p) => (isPdf(p) ? PDF_MAX_BYTES : ASSET_MAX_BYTES);
 
 /**
  * A file reference as documents write it, as a path: no query or fragment, %-escapes decoded, no
@@ -88,13 +97,13 @@ function cleanSegment(s, keepExt = false) {
 }
 
 /**
- * Where a Foundry picture goes in the campaign's files: `folder/<its Foundry path>` (or just its
- * name, for layout "flat"), made a valid campaign path. null if it isn't a picture.
+ * Where a Foundry picture or PDF goes in the campaign's files: `folder/<its Foundry path>` (or just
+ * its name, for layout "flat"), made a valid campaign path. null if it's neither.
  * @param {string} path  a Foundry path, as filePath gives it
  * @param {{ folder: string, layout: string }} assets
  */
 export function targetPath(path, assets) {
-  if (!path || !isImage(path)) return null;
+  if (!path || !kindOf(path)) return null;
   const base = parseFolder(assets.folder) ?? parseFolder(ASSET_DEFAULTS.folder);
   let rel;
   if (isRemote(path)) {
@@ -118,7 +127,7 @@ export function targetPath(path, assets) {
 }
 
 /**
- * What to upload: each picture the converted entries point at that the bundle has, once.
+ * What to upload: each picture or PDF the converted entries point at that the bundle has, once.
  * @param {{ path: string, target: string, available: boolean }[]} refs  convert()'s `assets`
  * @param {{ files: Record<string, { file: string, size: number }> }} bundle
  */
@@ -129,7 +138,7 @@ export function uploadPlan(refs, bundle) {
     const f = bundle?.files?.[r.path];
     if (!r.available || !f || !r.target || seen.has(r.target)) continue;
     seen.add(r.target);
-    plan.push({ from: r.path, file: f.file, size: f.size ?? 0, path: r.target });
+    plan.push({ from: r.path, file: f.file, size: f.size ?? 0, path: r.target, kind: kindOf(r.path) });
   }
   return plan;
 }

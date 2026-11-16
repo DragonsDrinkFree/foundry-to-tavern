@@ -6,7 +6,7 @@
 //        [--schema <tavern.json>…] [--out <archive.json>] [--name <archive name>] [--wrap] [--json]
 //
 // A bundle (from the Export for Tavern Moot Foundry module) brings its packs and translations; its
-// pictures are planned (the paths documents get, and the uploads listed) but not uploaded.
+// pictures and PDFs are planned (the paths documents get, and the uploads listed) but not uploaded.
 //
 // Prints what came in, by type, and every note and problem. Exit 0: converted; 1: problems that
 // left documents out; 2: usage or a broken rules file.
@@ -93,7 +93,7 @@ if (opts.json) {
   for (const p of out.problems) console.log(`${p.level}: ${p.doc ? `${p.doc}: ` : ''}${p.message}`);
   if (bundle) {
     const up = plan();
-    console.log(`pictures: ${up.length} to upload (${(up.reduce((n, p) => n + p.size, 0) / 1048576).toFixed(1)} MB)${up[0] ? `, e.g. ${up[0].from} → ${up[0].path}` : ''}`);
+    console.log(`pictures and PDFs: ${up.length} to upload (${up.filter((p) => p.kind === 'pdf').length} PDFs, ${(up.reduce((n, p) => n + p.size, 0) / 1048576).toFixed(1)} MB)${up[0] ? `, e.g. ${up[0].from} → ${up[0].path}` : ''}`);
   }
   if (opts.out) console.log(`wrote ${opts.out}: ${out.entries.length} entries`);
 }

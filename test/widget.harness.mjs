@@ -2,7 +2,7 @@
 // Drives the real widget page (foundry-to-tavern-module/ui/import.html) in headless Chrome against a stand-in `tavern`:
 // drops a rules file, exports and a schema on the Compendium Importer tab as a GM would, presses
 // Create, and checks what reached `tavern.archives.create`. Then it drops a bundle built by
-// foundry-export-module on the Foundry Export tab, and checks the uploads and where the documents point.
+// tavern-export on the Foundry Export tab, and checks the uploads and where the documents point.
 //
 //   node test/widget.harness.mjs [--shot out.png]      (CHROME=<path> to pick the browser)
 //
@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildBundle } from '../foundry-export-module/scripts/bundle.mjs';
+import { buildBundle } from '../tavern-export/scripts/bundle.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const shotAt = process.argv.indexOf('--shot');
@@ -34,14 +34,15 @@ const FILES = [
   'test/fixtures/osr-tavern.json',
 ];
 
-// A bundle as the Foundry module makes it, from the same exports, with made-up pictures.
+// A bundle as the Foundry module makes it, from the same exports and the journals (whose PDF
+// pages become PDF notes), with made-up pictures and PDFs.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64');
-const bundleExports = FILES.slice(1, 3).map((f) => JSON.parse(fs.readFileSync(path.join(root, f), 'utf8')));
+const bundleExports = [...FILES.slice(1, 3), 'reference/Foundry/fvtt-JournalEntry-pack-ose-ose-journal.json'].map((f) => JSON.parse(fs.readFileSync(path.join(root, f), 'utf8')));
 const { blob: bundleBlob } = await buildBundle({
   packs: bundleExports.map((x) => ({ collection: x.package, metadata: x.metadata, documentName: x.type, documents: x.items, folders: x.folders })),
   source: bundleExports[0].source,
   exporter: { id: 'tavern-export', version: 'harness' },
-  fetchFile: async () => new Blob([PNG], { type: 'image/png' }),
+  fetchFile: async (p) => (p.endsWith('.pdf') ? new Blob(['%PDF-1.7 made up'], { type: 'application/pdf' }) : new Blob([PNG], { type: 'image/png' })),
 });
 const BUNDLE = Buffer.from(await bundleBlob.arrayBuffer());
 
@@ -67,7 +68,7 @@ const MOCK = `
       create: (input) => { __calls.push(['archives.create', { name: input.name, access: input.access, entries: input.entries }]); return ok('arc-new'); },
       add: (a, e) => { __calls.push(['archives.add', a, e.length]); return ok(e.map((x) => x.id)); },
     },
-    features: { has: (id) => ok(id === 'core.asset-upload' || id === 'core.import-refs') },
+    features: { has: (id) => ok(id === 'core.asset-upload' || id === 'core.import-refs' || id === 'core.pdf') },
     assets: {
       // The first picture of each call is stored renamed, the second fails, the rest are stored (every other one "already there").
       uploadMany: (files, opts) => {
@@ -127,7 +128,7 @@ const MOCK = `
       const before = __calls.filter((c) => c[0] === 'archives.create').length;
       document.getElementById('create').click();
       await until(() => __calls.filter((c) => c[0] === 'archives.create').length > before, 'the second archives.create', 4000);
-      await until(() => /Pictures:/.test(document.getElementById('status').textContent), 'the pictures status');
+      await until(() => /Files:/.test(document.getElementById('status').textContent), 'the upload status');
       fe.status = document.getElementById('status').textContent;
 
       // Rules with setup steps show them under the rules, formatted but never as HTML.
@@ -208,20 +209,25 @@ server.listen(0, '127.0.0.1', () => {
       const uploaded = uploads.flatMap((c) => c[4]);
       check(fe.ciHidden, 'the tab switched');
       check(/tavern-dev-ose\.zip/.test(fe.bundle) && /ose-creatures/.test(fe.bundle), `the bundle is listed (${fe.bundle.slice(0, 120)})`);
-      check(/160 documents/.test(fe.summary), `160 documents from the bundle's two packs (${fe.summary.slice(0, 80)})`);
-      check(/pictures to upload/.test(fe.pictures), `the pictures are counted (${fe.pictures})`);
-      check(/Upload pictures/.test(fe.createLabel), 'the button says it uploads');
+      check(/390 documents/.test(fe.summary), `390 documents from the bundle's three packs (${fe.summary.slice(0, 80)})`);
+      check(/\d+ pictures and 3 PDFs to upload/.test(fe.pictures), `the pictures and PDFs are counted (${fe.pictures})`);
+      check(/Upload files/.test(fe.createLabel), 'the button says it uploads');
       check(uploads.length >= 2 && uploads.every((c) => c[1] <= 50), `uploaded in batches of 50 at most (${uploads.map((c) => c[1]).join(', ')})`);
       check(uploads.every((c) => c[2] === 'skip' && c[3] === true), 'as Blobs, keeping pictures already there');
       check(uploaded.length > 50 && uploaded.every((p) => p.startsWith('foundry/ose/')), 'into the rules\u2019 folder');
       check(new Set(uploaded).size === uploaded.length, 'each picture once');
       if (second && uploads.length) {
-        const pics = second.entries.flatMap((e) => [e.data?.portrait, e.data?.img]).filter((p) => typeof p === 'string');
+        const pics = second.entries.flatMap((e) => [e.data?.portrait, e.data?.img, e.data?.file]).filter((p) => typeof p === 'string');
         const renamed = uploads.map((c) => c[4][0].replace(/(\.\w+)$/, ' (2)$1'));
         check(renamed.every((p) => pics.includes(p)), 'documents point at the renamed copies');
         check(!pics.includes(uploads[0][4][1]), 'and not at a picture that failed');
         check(pics.filter(Boolean).every((p) => p.startsWith('foundry/ose/')), 'every picture is a campaign path');
         check(pics.filter(Boolean).length > 50, `most documents have their picture (${pics.filter(Boolean).length})`);
+        const pdfNotes = second.entries.filter((e) => e.type === 'core.pdf');
+        check(pdfNotes.length === 3, `the journals' PDFs are PDF notes (${pdfNotes.length})`);
+        const pdfFiles = pdfNotes.map((e) => e.data.file).filter(Boolean);
+        check(pdfFiles.length >= 2 && pdfFiles.every((f) => /^foundry\/ose\/modules\/.+\.pdf$/.test(f)), `pointing at their uploaded PDFs (${pdfFiles.join(', ')})`);
+        check(uploaded.filter((p) => p.endsWith('.pdf')).length === 3, 'each PDF uploaded once');
       } else fail.push('no second archives.create, or no uploads');
       check(/^Made/.test(fe.status) && /failed/.test(fe.status), `the status reports the uploads (${fe.status})`);
       check(r.setup.steps === 4, `the Dolmenwood rules' four setup steps (${r.setup.steps})`);

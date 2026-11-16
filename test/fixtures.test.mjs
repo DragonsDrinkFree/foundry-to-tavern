@@ -96,7 +96,15 @@ test('OSE → OSR converts every sample document', { skip: !have && 'no referenc
   // Journals are tomes; their pages are notes held by them, in Foundry's order (by sort, which
   // is how a tome shows pages its layout doesn't list).
   const tomes = out.entries.filter((e) => e.type === 'core.tome');
-  assert.equal(tomes.length, 9); // the "PDF" journals keep their text page; the PDF itself stays behind
+  assert.equal(tomes.length, 6); // the "PDF" journals are PDF notes (below), not tomes
+  // PDF pages are PDF notes (TM ADR 0133), in the journal's folder: a tome holds only notes. The
+  // "File Location" page beside each (where the PDF is on Foundry's disk) is dropped.
+  const pdfs = out.entries.filter((e) => e.type === 'core.pdf');
+  assert.equal(pdfs.length, 3);
+  assert.ok(pdfs.every((p) => out.entries.find((e) => e.id === p.parentId)?.type === 'core.folder'));
+  assert.ok(!out.entries.some((e) => /file location/i.test(e.name)));
+  assert.deepEqual(pdfs.map((p) => p.data), [{}, {}, {}]); // no bundle: nothing to point at
+  assert.equal(pdfs.find((p) => parents(p).includes('The Hole in the Oak')).name, 'The Hole in the Oak V2025 08');
   const oak = tomes.find((t) => t.name === 'The Hole In the Oak');
   const pages = out.entries.filter((e) => e.parentId === oak.id);
   assert.equal(pages.length, 68);
@@ -115,6 +123,16 @@ test('OSE → OSR converts every sample document', { skip: !have && 'no referenc
   });
   const drawn = withPictures.entries.filter((e) => /^!\[[^\]]*\]\(foundry\/ose\/[^)]+\)/.test(e.data?.body ?? ''));
   assert.ok(drawn.length >= 3, `${drawn.length} image pages draw their picture`);
+  assert.deepEqual(withPictures.entries.filter((e) => e.type === 'core.pdf').map((p) => p.data.file).sort(), [
+    'foundry/ose/modules/ose-hallsofthebloodking/pdf/OldSchoolEssentials-HallsOfBloodKing.pdf',
+    'foundry/ose/modules/ose-theholeintheoak/pdf/The_Hole_in_the_Oak_V2025-08.pdf',
+    'foundry/ose/modules/ose-theincandescentgrottoes/pdf/OldSchoolEssentials-IncandescentGrottoes.pdf',
+  ]);
+  // A server without PDF notes: they're left out, and that's said.
+  const noPdf = convert(compileRules(read(at('rules', 'ose-to-osr.json'))), files, { schema, pdfs: false });
+  assert.equal(noPdf.entries.filter((e) => e.type === 'core.pdf').length, 0);
+  assert.equal(noPdf.packs[2].skipped, out.packs[2].skipped + 3);
+  assert.ok(noPdf.notes.some((n) => n.level === 'warning' && /no PDF notes/.test(n.message)));
 });
 
 test('an adventure pack unpacks: its documents by their own rules, its folders merged', { skip: !have && 'no reference/Foundry' }, () => {

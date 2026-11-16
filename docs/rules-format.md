@@ -62,7 +62,7 @@ left out, and the preview counts them.
 | `types`       |   yes    | Foundry type → rule, or a list of rules. See [Rules](#rules).                                                                                                                |
 | `embedded`    |          | Rules for documents embedded in another (an actor's items), when they differ from `types`. See [Embedded documents](#embedded-documents).                                    |
 | `schema`      |          | The target types' field definitions, written by `tools/schema.mjs`. Every converted document is checked against them. See [Checking against the target](#checking-against-the-target). |
-| `assets`      |          | Where pictures go in the campaign's files, and which to bring. See [Pictures](#pictures).                                                                                     |
+| `assets`      |          | Where pictures and PDFs go in the campaign's files, and which to bring. See [Pictures and PDFs](#pictures-and-pdfs).                                                          |
 
 ### Setup steps
 
@@ -324,8 +324,8 @@ expressions, so `{ "add": "$^.system.bonus" }` works.
   bundle brings the world's own). It gives nothing if the key isn't found, and the preview counts
   the misses, so add a fallback:
   `[{ "coalesce": [["$nameKey", "lang"], ["$id", "humanize"]] }]`.
-- `asset` takes a Foundry file path and gives the campaign path the picture is uploaded to. See
-  [Pictures](#pictures).
+- `asset` takes a Foundry file path and gives the campaign path the picture or PDF is uploaded to.
+  See [Pictures and PDFs](#pictures-and-pdfs).
 - `ref` takes a Foundry `_id` and gives the id of the entry that document became in this import.
   See [Links between documents](#links-between-documents).
 
@@ -406,7 +406,33 @@ The shipped rule sets do this for every journal with text or image pages:
 
 - a text page keeps its Markdown when Foundry wrote it as Markdown;
 - an image page shows its picture (`![name](path)`, through `asset`) and its caption;
-- PDF and video pages stay behind.
+- a PDF page becomes a PDF note (below);
+- video pages stay behind.
+
+### PDF pages
+
+A PDF note (`core.pdf`, TM ADR 0133) is a PDF from the campaign's files, read in Notes. Its data is
+`{ file }`, the PDF's campaign path. A tome holds only notes, so a journal's PDF pages become PDF
+notes **beside** its tome, in the journal's folder:
+
+```json
+"extra": [{
+  "from": ["$pages", { "where": [{ "get": "type" }, { "eq": "pdf" }] }],
+  "place": "beside",
+  "type": "core.pdf",
+  "data": { "file": ["$src", "asset", "nullIfEmpty"] }
+}]
+```
+
+`nullIfEmpty` leaves `file` out when there is no PDF to upload, which makes an empty PDF note: it
+asks for its PDF when opened. A journal with nothing but PDF pages is made a `core.pdf` itself.
+
+The shipped rule sets do both. A PDF page called "PDF" (the OSE modules' habit) takes its
+journal's name, or failing that, its file's. The OSE rules also drop the "File Location" page the
+OSE modules put beside each PDF: it gives the PDF's place on Foundry's disk.
+
+PDF notes need a server with `core.pdf`; the widget checks. Without it, they're left out, and the
+preview says so.
 
 ## Links between documents
 
@@ -436,14 +462,14 @@ label, as they always did.
 - **Where each entry came from:** `flags["foundry-to-tavern"].source` gives
   `{ pack, id, type, system }`, plus `embedded`, or `extra` and `index`, for documents that weren't
   top-level.
-- **Pictures** come across only through the `asset` transform, on the Foundry Export tab. See
-  [Pictures](#pictures).
+- **Pictures and PDFs** come across only through the `asset` transform, on the Foundry Export tab.
+  See [Pictures and PDFs](#pictures-and-pdfs).
 
-## Pictures
+## Pictures and PDFs
 
 Foundry documents name their pictures by path (`img`, `prototypeToken.texture.src`,
-`background.src`…). Those paths mean nothing in a campaign. The `asset` transform turns one into
-the campaign path the picture is uploaded to:
+`background.src`…), and a PDF journal page its PDF (`src`). Those paths mean nothing in a campaign.
+The `asset` transform turns one into the campaign path the file is uploaded to:
 
 ```json
 "data": {
@@ -452,7 +478,8 @@ the campaign path the picture is uploaded to:
 }
 ```
 
-The second line uses the token art when the portrait is one of Foundry's stock icons.
+The second line uses the token art when the portrait is one of Foundry's stock icons. Everything
+below about pictures goes for PDFs too.
 
 **On the Foundry Export tab,** the bundle carries the pictures. The preview shows each document
 pointing at where its picture will go. When you create the archive, the widget first uploads every
@@ -488,9 +515,14 @@ The `assets` section says where pictures go and which to bring. Every key is opt
 
 Paths are made valid campaign paths as they are planned. Characters a campaign path can't hold
 become `-`. A path more than eight folders deep has its deepest folders merged into one. A web
-address (`https://host/a/b.png`) goes under `web/host/a/`. Only pictures come across (png, jpg,
-webp, gif, avif, svg); the preview notes anything else a rule maps with `asset`, such as PDFs and
-audio.
+address (`https://host/a/b.png`) goes under `web/host/a/`. Only pictures (png, jpg, webp, gif,
+avif, svg, up to 25 MB) and PDFs come across; the preview notes anything else a rule maps with
+`asset`, such as audio.
+
+A PDF may be up to 1 GB on a local storage, but a bucket storage takes PDFs up to 100 MB only
+(TM ADR 0134). The widget warns when a PDF is larger: choose a `folder` on a local storage for it.
+PDFs go up one batch at a time, a large one on its own, with its name in the status. On a server
+without `core.pdf`, `asset` gives nothing for a PDF.
 
 ## Checking against the target
 

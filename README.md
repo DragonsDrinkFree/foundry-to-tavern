@@ -1,15 +1,15 @@
 # Foundry Import (`foundry-to-tavern`)
 
 Two modules that bring FoundryVTT compendiums into Tavern Moot as campaign archives. Folders come
-across nested as they were, and with the second route, so do the pictures.
+across nested as they were, and with the second route, so do the pictures and PDFs.
 
 - **[`foundry-to-tavern-module/`](foundry-to-tavern-module)**: the Tavern Moot module. Its
   *Foundry import* widget converts exports into an archive. It has two tabs:
   - **Compendium Importer** takes the JSON files that mana's Compendium Importer writes;
-  - **Foundry Export** takes a bundle from the Foundry module below, and also uploads the pictures.
-- **[`foundry-export-module/`](foundry-export-module)**: *Export for Tavern Moot*, a Foundry module.
-  It exports compendiums, the pictures they use and the world's translations as one `.zip`
-  bundle.
+  - **Foundry Export** takes a bundle from the Foundry module below, and also uploads the pictures and PDFs.
+- **[`tavern-export/`](tavern-export)**: *Export for Tavern Moot*, a Foundry module.
+  It exports compendiums, the pictures and PDFs they use and the world's translations as one
+  `.zip` bundle.
 
 The conversion is driven by a **rules file**: JSON that maps Foundry types and fields onto the
 campaign system's types and fields. The widget works with any system. Each Foundry system → Tavern
@@ -18,7 +18,7 @@ Moot system pairing needs its own rules file, and one rules file serves both tab
 ## Using it
 
 1. **In Foundry**, either:
-   - export with *Export for Tavern Moot* (see [its README](foundry-export-module/README.md)), or
+   - export with *Export for Tavern Moot* (see [its README](tavern-export/README.md)), or
    - export with mana's Compendium Importer, which brings no pictures.
 2. **In a campaign you run**, open **Modules**, add *Foundry Import*, and allow its widget. Open
    it from the menu bar's **Widgets** menu (*Foundry import*).
@@ -34,32 +34,34 @@ Moot system pairing needs its own rules file, and one rules file serves both tab
      carry a schema.
 4. **Read the preview.** It gives counts by pack and by type, the folder tree, and notes on
    anything repaired or left out.
-5. **Pictures** (Foundry Export tab). The preview shows how many pictures will be uploaded and to
-   which folder. You can change the folder, and what happens when a picture of that name is
-   already there. By default a picture that is already there is kept if it's the same picture, so
-   importing again sends nothing twice.
+5. **Pictures and PDFs** (Foundry Export tab). The preview shows how many pictures and PDFs will be
+   uploaded and to which folder. You can change the folder, and what happens when a file of that
+   name is already there. By default a file that is already there is kept if it's the same file,
+   so importing again sends nothing twice.
 6. **Choose the archive:** *A new archive*, or *Add to an archive this campaign has* to update an
    earlier import (the same ids are replaced). Then press **Create archive**. On the Foundry
-   Export tab the button reads *Upload pictures and create archive*: the pictures are uploaded
+   Export tab the button reads *Upload files and create archive*: the files are uploaded
    first, and the documents point at wherever they were stored.
 7. **Import what you need** from the archive in the **Archives** window.
 
 **Save to campaign** keeps the rules in the campaign, so next time you can pick them from the list
-instead of dropping the file again. Only GMs can make archives and upload pictures. Players can
+instead of dropping the file again. Only GMs can make archives and upload files. Players can
 open the widget and preview a conversion, but can't save it.
 
 Uploading pictures needs a Tavern Moot with `tavern.assets.uploadMany` (TM ADR 0131). Keeping
 pictures that are already there needs a server with the `core.asset-upload` feature. On an older
 server the widget offers to upload copies instead, or to make the archive without pictures.
+PDF notes need a server with `core.pdf` (TM ADR 0133); without it, the PDFs are left out.
 
 ## Rule sets included
 
 | File                                                       | From → to                         | Covers                                                                                                   |
 | ---------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [`rules/dolmenwood-to-osr.json`](rules/dolmenwood-to-osr.json) | Dolmenwood → OSR (`osr` system) | Equipment, spells, holy spells, runes, glamours, classes, kindreds, creatures, journals (as tomes); their pictures. |
-| [`rules/ose-to-osr.json`](rules/ose-to-osr.json)               | OSE → OSR                       | Items and treasure, weapons, armour, containers, spells, monsters with attacks, journals (as tomes), adventures; their pictures. |
+| [`rules/dolmenwood-to-osr.json`](rules/dolmenwood-to-osr.json) | Dolmenwood → OSR (`osr` system) | Equipment, spells, holy spells, runes, glamours, classes, kindreds, creatures, journals (as tomes, PDFs as PDF notes); their pictures. |
+| [`rules/ose-to-osr.json`](rules/ose-to-osr.json)               | OSE → OSR                       | Items and treasure, weapons, armour, containers, spells, monsters with attacks, journals (as tomes, PDFs as PDF notes), adventures; their pictures. |
 
-Journals become tomes, one page per Foundry page. Adventure compendiums are unpacked: their
+Journals become tomes, one page per Foundry page, and their PDF pages become PDF notes beside
+the tome (a tome holds only notes). Adventure compendiums are unpacked: their
 actors, items and journals convert by the same rules, and the adventure's description becomes a
 note. Scenes and roll tables aren't converted yet; the preview counts them as left out.
 
@@ -69,7 +71,7 @@ format is in [docs/bundle-format.md](docs/bundle-format.md).
 ## Layout
 
 The two packages are `foundry-to-tavern-module/` (load it in Tavern Moot's Library) and
-`foundry-export-module/` (copy it into Foundry's `Data/modules/` as `tavern-export`). Everything
+`tavern-export/` (copy it into Foundry's `Data/modules/` as is). Everything
 else is development material.
 
 ```
@@ -80,10 +82,10 @@ foundry-to-tavern-module/
   lib/expr.mjs       the rules file's expression language
   lib/schema.mjs     checking data against a system's fields (a port of TM's normalizeFields)
   lib/text.mjs       HTML → Markdown, Foundry inline rolls/links → embeds, export clean-up
-  lib/assets.mjs     Foundry picture paths → campaign file paths, and the upload plan
+  lib/assets.mjs     Foundry picture and PDF paths → campaign file paths, and the upload plan
   lib/bundle.mjs     opening an export bundle
   lib/zip.mjs        reading a zip in the page
-foundry-export-module/
+tavern-export/
   module.json        the Foundry module (v13, v14)
   scripts/main.mjs   sidebar button, context menu, dialog; reads packs and fetches files
   scripts/bundle.mjs builds the bundle (no Foundry globals)

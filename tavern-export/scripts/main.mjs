@@ -1,4 +1,4 @@
-// Export for Tavern Moot: compendiums, with their pictures, as one zip for the Foundry Import
+// Export for Tavern Moot: compendiums, with their pictures and PDFs, as one zip for the Foundry Import
 // widget's "Foundry Export" tab. GMs only. Everything heavy is in bundle.mjs; this file is the
 // Foundry side: the sidebar button and context menu, the dialog, reading packs and fetching files.
 //
@@ -84,6 +84,7 @@ export async function openExportDialog(preselected = null) {
       <p class="hint">${esc(t('Dialog.Hint'))}</p>
       <div class="tavern-export-packs">${list || `<p>${esc(t('Dialog.NoPacks'))}</p>`}</div>
       ${opt('pictures', last.pictures ?? true, t('Option.Pictures'), t('Option.PicturesHint'))}
+      ${opt('pdfs', last.pdfs ?? true, t('Option.Pdfs'), t('Option.PdfsHint'))}
       ${opt('core', last.core ?? false, t('Option.Core'), t('Option.CoreHint'))}
       ${opt('remote', last.remote ?? false, t('Option.Remote'), t('Option.RemoteHint'))}
       ${opt('translations', last.translations ?? true, t('Option.Translations'), t('Option.TranslationsHint'))}
@@ -101,7 +102,7 @@ export async function openExportDialog(preselected = null) {
         callback: (event, button) => {
           const f = button.form.elements;
           const packs = [...button.form.querySelectorAll('input[name=pack]:checked')].map((i) => i.value);
-          return { packs, pictures: f.pictures.checked, core: f.core.checked, remote: f.remote.checked, translations: f.translations.checked, fileName: f.fileName.value };
+          return { packs, pictures: f.pictures.checked, pdfs: f.pdfs.checked, core: f.core.checked, remote: f.remote.checked, translations: f.translations.checked, fileName: f.fileName.value };
         },
       },
       { action: 'cancel', label: t('Dialog.Cancel'), icon: 'fa-solid fa-xmark' },
@@ -133,7 +134,7 @@ async function fetchFile(path) {
 /**
  * Export packs as a bundle. Returns { blob, manifest }; with `download`, also saves it.
  * @param {string[]} ids  pack ids (`world.my-items`, `dolmenwood.creatures`…)
- * @param {{ pictures?: boolean, core?: boolean, remote?: boolean, translations?: boolean, download?: boolean, fileName?: string }} [opts]
+ * @param {{ pictures?: boolean, pdfs?: boolean, core?: boolean, remote?: boolean, translations?: boolean, download?: boolean, fileName?: string }} [opts]
  */
 export async function exportPacks(ids, opts = {}) {
   const packs = ids.map((id) => {
@@ -163,10 +164,10 @@ export async function exportPacks(ids, opts = {}) {
       titles: { world: game.world.title, system: game.system.title },
       exporter: { id: MODULE_ID, version: module?.version ?? '0.0.0' },
       i18n: opts.translations === false ? null : { lang: game.i18n.lang, translations: game.i18n.translations, fallback: game.i18n._fallback },
-      options: { pictures: opts.pictures ?? true, core: !!opts.core, remote: !!opts.remote },
+      options: { pictures: opts.pictures ?? true, pdfs: opts.pdfs ?? true, core: !!opts.core, remote: !!opts.remote },
       fetchFile,
-      onProgress: ({ stage, done, total }) => {
-        if (stage === 'files') step(0.3 + 0.65 * (done / Math.max(1, total)), t('Progress.Files', { done, total }));
+      onProgress: ({ stage, done, total, label }) => {
+        if (stage === 'files') step(0.3 + 0.65 * (done / Math.max(1, total)), t('Progress.Files', { done, total, label: label?.split('/').pop() ?? '' }));
       },
     });
     bar?.update?.({ pct: 1, message: t('Progress.Done') });

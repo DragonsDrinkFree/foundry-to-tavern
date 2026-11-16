@@ -30,6 +30,16 @@ async function toBytes(data) {
   throw new Error('a zip entry is a string, bytes or a Blob');
 }
 
+/** A Blob's CRC, read a slice at a time (a large PDF needn't be in memory whole). */
+async function crc32Blob(blob, slice = 16 * 1024 * 1024) {
+  let c = 0xffffffff;
+  for (let at = 0; at < blob.size; at += slice) {
+    const bytes = new Uint8Array(await blob.slice(at, at + slice).arrayBuffer());
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
 async function deflateRaw(bytes) {
   if (typeof CompressionStream !== 'function') return null;
   const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
@@ -74,6 +84,9 @@ export class ZipWriter {
     name = zipName(name);
     if (this.names.has(name)) throw new Error(`"${name}" is in the zip already`);
     if (this.central.length >= 0xffff) throw new Error('a zip without zip64 holds at most 65,535 files');
+    const isBlob = typeof Blob === 'function' && data instanceof Blob;
+    // A Blob stored as it is goes in as itself: only its CRC is worked out, a slice at a time.
+    if (isBlob && !deflate) return this.#push(name, data, 0, await crc32Blob(data), data.size, data.size, date);
     const bytes = await toBytes(data);
     const crc = crc32(bytes);
     let method = 0;
@@ -82,8 +95,12 @@ export class ZipWriter {
       const packed = await deflateRaw(bytes);
       if (packed && packed.length < bytes.length) { method = 8; body = packed; }
     }
+    this.#push(name, body, method, crc, body.length, bytes.length, date);
+  }
+
+  #push(name, body, method, crc, compressed, size, date) {
     const nameBytes = new TextEncoder().encode(name);
-    if (this.offset + 30 + nameBytes.length + body.length > LIMIT) throw new Error('the export is larger than 4 GB, which this zip writer can’t do; export fewer compendiums at a time');
+    if (this.offset + 30 + nameBytes.length + compressed > LIMIT) throw new Error('the export is larger than 4 GB, which this zip writer can’t do; export fewer compendiums at a time');
     const { time, date: day } = dosDateTime(date);
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true);
@@ -93,15 +110,13 @@ export class ZipWriter {
     local.setUint16(10, time, true);
     local.setUint16(12, day, true);
     local.setUint32(14, crc, true);
-    local.setUint32(18, body.length, true);
-    local.setUint32(22, bytes.length, true);
+    local.setUint32(18, compressed, true);
+    local.setUint32(22, size, true);
     local.setUint16(26, nameBytes.length, true);
     local.setUint16(28, 0, true);
-    // A stored Blob goes in as itself, so its bytes needn't stay in memory twice.
-    const isBlob = typeof Blob === 'function' && data instanceof Blob;
-    this.parts.push(local.buffer, nameBytes, method === 0 && isBlob ? data : body);
-    this.central.push({ nameBytes, method, time, day, crc, compressed: body.length, size: bytes.length, offset: this.offset });
-    this.offset += 30 + nameBytes.length + body.length;
+    this.parts.push(local.buffer, nameBytes, body);
+    this.central.push({ nameBytes, method, time, day, crc, compressed, size, offset: this.offset });
+    this.offset += 30 + nameBytes.length + compressed;
     this.names.add(name);
   }
 

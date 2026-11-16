@@ -1,12 +1,12 @@
 # Export bundles
 
 An export bundle is one `.zip` holding everything an import needs from a Foundry world: compendium
-packs, the pictures their documents use, and the world's translations. The Foundry module
-[`foundry-export-module/`](../foundry-export-module) (*Export for Tavern Moot*) writes bundles. The
+packs, the pictures and PDFs their documents use, and the world's translations. The Foundry module
+[`tavern-export/`](../tavern-export) (*Export for Tavern Moot*) writes bundles. The
 Tavern Moot module's **Foundry Export** tab reads them, and so does `tools/convert.mjs`.
 
 A bundle replaces mana's Compendium Importer for this workflow and adds what that importer leaves
-behind: the pictures and the translations. Its packs are in the importer's format, so the same
+behind: the pictures, the PDFs and the translations. Its packs are in the importer's format, so the same
 [rules files](rules-format.md) convert either.
 
 ## Layout
@@ -19,15 +19,17 @@ lang/en.json                                    the world's translations (game.i
 lang/fallback.json                              English, when the world runs another language
 files/modules/ose-theholeintheoak/artwork/tokens/hazrad.webp     pictures, at their Foundry paths
 files/worlds/my-world/maps/cave.jpg
+files/modules/ose-theholeintheoak/pdf/The_Hole_in_the_Oak.pdf    PDFs, the same way
 files/web/example.com/art/dragon.png            pictures at web addresses: files/web/<host>/<path>
 ```
 
 Readers find files through the manifest, not by these names. Only `tavern-bundle.json` has a fixed
 name.
 
-The zip is a plain zip: no zip64, no encryption. JSON is deflated and pictures are stored as they
-are. Readers must accept both, and should accept `\` in names, which Windows PowerShell 5 writes.
+The zip is a plain zip: no zip64, no encryption. JSON is deflated; pictures and PDFs are stored as they
+are, so a reader slices them out of the zip without unpacking. Readers must accept both, and should accept `\` in names, which Windows PowerShell 5 writes.
 Without zip64, a bundle holds at most 65,535 files and 4 GB; the exporter refuses to go past that.
+A module's PDFs are what make a bundle large: export fewer compendiums, or leave PDFs off.
 
 ## The manifest
 
@@ -54,7 +56,7 @@ Without zip64, a bundle holds at most 65,535 files and 4 GB; the exporter refuse
   },
   "left": [
     { "path": "icons/creatures/reptiles/dragon-winged-blue.webp", "reason": "Foundry’s own file, not exported", "uses": 3 },
-    { "path": "modules/ose-theholeintheoak/pdf/The_Hole_in_the_Oak.pdf", "reason": "not a picture (Tavern Moot keeps pictures only)", "uses": 1 }
+    { "path": "modules/ose-theholeintheoak/audio/cave-drips.ogg", "reason": "not a picture or PDF (Tavern Moot keeps only those)", "uses": 1 }
   ]
 }
 ```
@@ -68,8 +70,8 @@ Without zip64, a bundle holds at most 65,535 files and 4 GB; the exporter refuse
 | `source`    | The world, its system and Foundry's version: the same `source` each pack file has, plus titles.                                                                                                                    |
 | `packs`     | One entry per pack: the zip `file`, the pack's `id` (collection), `label`, document `type`, and counts.                                                                                                            |
 | `lang`      | Translation files, merged in order (later wins): the world's language last.                                                                                                                                        |
-| `files`     | Pictures, keyed by **Foundry path** (below): the zip `file`, `size` in bytes, and media `type`. Every key is a picture some document in the bundle points at.                                                      |
-| `left`      | Files the documents point at that the bundle doesn't carry, with why: not a picture, Foundry's own, at a web address, not found, larger than 25 MB, empty, or pictures not exported at all. `uses` counts references. |
+| `files`     | Pictures and PDFs, keyed by **Foundry path** (below): the zip `file`, `size` in bytes, and media `type`. Every key is a file some document in the bundle points at.                                               |
+| `left`      | Files the documents point at that the bundle doesn't carry, with why: not a picture or PDF, Foundry's own, at a web address, not found, larger than 25 MB (a picture) or 1 GB (a PDF), empty, or pictures or PDFs not exported at all. `uses` counts references. |
 
 ### Pack files
 
@@ -106,13 +108,14 @@ reference:
   `background.src`, a page's `src`…);
 - every `src`, `href`, `poster` and `data-src` in HTML text.
 
-Pictures (png, jpg, jpeg, webp, gif, avif, svg) go into `files`. Anything else (PDFs, audio,
-video) goes into `left`, because Tavern Moot keeps only pictures. The exporter's options decide
-the rest:
+Pictures (png, jpg, jpeg, webp, gif, avif, svg) and PDFs go into `files`. Anything else (audio,
+video) goes into `left`, because Tavern Moot keeps only pictures and PDFs. The exporter's options
+decide the rest:
 
 | Option            | Default | When off                                                                                                                                                                                                              |
 | ----------------- | :-----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Pictures          |   on    | Nothing goes in `files`.                                                                                                                                                                                              |
+| Pictures          |   on    | No pictures go in `files`.                                                                                                                                                                                            |
+| PDFs              |   on    | No PDFs go in `files`. A Foundry PDF journal page (`type: "pdf"`, its `src`) is where they come from.                                                                                                                 |
 | Foundry's own icons |  off  | Files under `icons/`, `ui/`, `cards/` and `sounds/` come with Foundry, not the world, so they stay out unless this is on. Check their licence before using them elsewhere.                                            |
 | Web addresses     |   off   | Pictures at `http(s)://` stay out unless this is on. A site may refuse to send them.                                                                                                                                  |
 | Translations      |   on    | No `lang` files.                                                                                                                                                                                                       |
@@ -123,8 +126,8 @@ What the Foundry Export tab does, for anyone writing another reader:
 
 1. Read the zip's central directory and `tavern-bundle.json`. Check `format` and `version`.
 2. Read the chosen `packs` and the `lang` files, and convert the packs by the rules.
-3. For each picture a converted document uses (the rules' `asset` transform), look its Foundry
-   path up in `files`. Plan its campaign path from the rules' `assets` section.
-4. Upload the planned pictures, reading each from the zip only when it's sent:
-   `tavern.assets.uploadMany`, in batches.
-5. Point the documents at the paths the pictures were stored under, and write the archive.
+3. For each picture or PDF a converted document uses (the rules' `asset` transform), look its
+   Foundry path up in `files`. Plan its campaign path from the rules' `assets` section.
+4. Upload the planned files, reading each from the zip only when it's sent:
+   `tavern.assets.uploadMany`, in batches. PDFs need a server with `core.pdf`.
+5. Point the documents at the paths the files were stored under, and write the archive.

@@ -6,7 +6,7 @@
     "NoneChosen": "Choose at least one compendium to export.",
     "NoPack": "There is no compendium {id}.",
     "Failed": "The export failed: {error}",
-    "Done": "Exported {packs} compendiums ({documents} documents) and {files} pictures, {size} MB. {left} files were left out (listed in the bundle and the console).",
+    "Done": "Exported {packs} compendiums ({documents} documents) and {files} pictures and PDFs, {size} MB. {left} files were left out (listed in the bundle and the console).",
     "Group": { "World": "This world" },
     "Dialog": {
       "Title": "Export for Tavern Moot",
@@ -18,6 +18,8 @@
     "Option": {
       "Pictures": "Pictures",
       "PicturesHint": "The pictures the documents use: portraits, icons, tokens, maps.",
+      "Pdfs": "PDFs",
+      "PdfsHint": "PDFs the journals show (a module's adventure, a handout), up to 1 GB each: they become PDF notes in Tavern Moot.",
       "Core": "Foundry's own icons",
       "CoreHint": "Files under icons/ and ui/, which come with Foundry: check their licence before using them elsewhere.",
       "Remote": "Pictures at web addresses",
@@ -29,7 +31,7 @@
     "Progress": {
       "Reading": "Exporting for Tavern Moot…",
       "Pack": "Reading {label}…",
-      "Files": "Pictures: {done} of {total}",
+      "Files": "Files: {done} of {total} ({label})",
       "Done": "Saving the bundle…"
     }
   }

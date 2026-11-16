@@ -11,7 +11,7 @@
         <h1>Foundry import</h1>
         <span id="system" class="chip" hidden></span>
       </header>
-      <p id="gm-only" class="banner warn" hidden>Only a GM can make archives and upload pictures. You can still preview a conversion.</p>
+      <p id="gm-only" class="banner warn" hidden>Only a GM can make archives and upload files. You can still preview a conversion.</p>
 
       <nav class="tabs" role="tablist" aria-label="What to import">
         <button id="tab-ci" class="tab" type="button" role="tab" data-mode="ci" aria-selected="true" aria-controls="panel-ci">Compendium Importer</button>
@@ -28,7 +28,7 @@
       <section id="panel-fe" role="tabpanel" aria-labelledby="tab-fe" hidden>
         <div id="drop-fe" class="drop" tabindex="0" aria-label="Drop a bundle here">
           <p><strong>Drop a bundle here</strong>, or <label class="link">choose it<input id="pick-fe" type="file" accept=".zip,application/zip,.json,application/json" multiple hidden /></label>.</p>
-          <p class="muted">The <code>.zip</code> that Foundry's <em>Export for Tavern Moot</em> module saves: compendiums, their pictures and the world's translations. Drop a rules file with it, unless one is saved below.</p>
+          <p class="muted">The <code>.zip</code> that Foundry's <em>Export for Tavern Moot</em> module saves: compendiums, their pictures and PDFs, and the world's translations. Drop a rules file with it, unless one is saved below.</p>
         </div>
       </section>
 
@@ -61,13 +61,13 @@
       </section>
 
       <section class="card" id="pictures-card" hidden>
-        <h2>4. Pictures</h2>
-        <label class="check"><input id="pictures" type="checkbox" checked /> Upload the pictures these documents use to the campaign's files</label>
+        <h2>4. Pictures and PDFs</h2>
+        <label class="check"><input id="pictures" type="checkbox" checked /> Upload the pictures and PDFs these documents use to the campaign's files</label>
         <div id="pictures-opts" class="row">
           <label class="field">Folder <input id="asset-folder" maxlength="200" spellcheck="false" /></label>
-          <label class="field">A picture of that name is already there
+          <label class="field">A file of that name is already there
             <select id="if-exists">
-              <option value="skip">Keep it, if it's the same picture</option>
+              <option value="skip">Keep it, if it's the same file</option>
               <option value="replace">Replace it</option>
               <option value="rename">Upload beside it, as a copy</option>
             </select>

@@ -1,5 +1,5 @@
 // Building an export bundle (docs/bundle-format.md): compendium packs as mana's Compendium
-// Importer writes them, the pictures they use, and the world's translations, in one zip. No Foundry
+// Importer writes them, the pictures and PDFs they use, and the world's translations, in one zip. No Foundry
 // globals here: main.mjs gathers the packs and fetches files, and the tests run this in Node.
 
 import { ZipWriter } from './zip.mjs';
@@ -7,13 +7,16 @@ import { ZipWriter } from './zip.mjs';
 export const BUNDLE_FORMAT = 'foundry-to-tavern/bundle';
 export const BUNDLE_VERSION = 1;
 export const MANIFEST = 'tavern-bundle.json';
-/** Tavern Moot's limit for one file. */
+/** Tavern Moot's limit for one picture. */
 export const FILE_MAX_BYTES = 25 * 1024 * 1024;
+/** And for one PDF (TM ADR 0134: 1 GB on a local storage; a bucket storage takes 100 MB). */
+export const PDF_MAX_BYTES = 1024 * 1024 * 1024;
 
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'svg']);
-// Files documents point at that Tavern Moot can't keep (it stores pictures only): listed, not sent.
-const OTHER_EXT = new Set(['webm', 'mp4', 'm4v', 'ogv', 'ogg', 'oga', 'mp3', 'wav', 'flac', 'm4a', 'opus', 'aac', 'pdf', 'bmp', 'tif', 'tiff']);
-const MEDIA_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif', svg: 'image/svg+xml' };
+// Files documents point at that Tavern Moot can't keep (pictures and PDFs only): listed, not sent.
+const OTHER_EXT = new Set(['webm', 'mp4', 'm4v', 'ogv', 'ogg', 'oga', 'mp3', 'wav', 'flac', 'm4a', 'opus', 'aac', 'bmp', 'tif', 'tiff']);
+const MEDIA_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', avif: 'image/avif', svg: 'image/svg+xml', pdf: 'application/pdf' };
+const kindOf = (ext) => (IMAGE_EXT.has(ext) ? 'image' : ext === 'pdf' ? 'pdf' : OTHER_EXT.has(ext) ? 'other' : null);
 
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 export const isRemote = (p) => SCHEME_RE.test(p);
@@ -40,14 +43,13 @@ const SRC_RE = /\b(?:src|href|poster|data-src)\s*=\s*(["'])(.*?)\1/gi;
 
 /**
  * Every file the documents point at: fields holding a path (`img`, `texture.src`, a page's `src`…)
- * and `src`/`href` in HTML text. Map of path → { path, kind: 'image'|'other', uses }.
+ * and `src`/`href` in HTML text. Map of path → { path, kind: 'image'|'pdf'|'other', uses }.
  */
 export function collectFiles(value, found = new Map()) {
   const consider = (ref) => {
     const path = filePath(ref);
     if (!path) return;
-    const ext = extOf(path);
-    const kind = IMAGE_EXT.has(ext) ? 'image' : OTHER_EXT.has(ext) ? 'other' : null;
+    const kind = kindOf(extOf(path));
     if (!kind) return;
     const f = found.get(path) ?? { path, kind, uses: 0 };
     f.uses++;
@@ -107,12 +109,12 @@ async function pool(items, size, fn) {
  * @param {(path: string) => Promise<Blob|null>} input.fetchFile  a file's bytes, or null if it isn't there
  * @param {{ lang: string, translations: object, fallback?: object }} [input.i18n]  the world's translations
  * @param {{ world?: string, system?: string }} [input.titles]
- * @param {{ pictures?: boolean, core?: boolean, remote?: boolean }} [input.options]
- *   pictures: send them at all; core: Foundry's own icons too; remote: files at web addresses too
+ * @param {{ pictures?: boolean, pdfs?: boolean, core?: boolean, remote?: boolean }} [input.options]
+ *   pictures, pdfs: send them at all; core: Foundry's own icons too; remote: files at web addresses too
  * @param {(p: { stage: string, done: number, total: number, label?: string }) => void} [input.onProgress]
  */
 export async function buildBundle({ packs, source, exporter, fetchFile, i18n = null, titles = {}, options = {}, onProgress = () => {} }) {
-  const opts = { pictures: true, core: false, remote: false, ...options };
+  const opts = { pictures: true, pdfs: true, core: false, remote: false, ...options };
   const zip = new ZipWriter();
   const manifest = {
     format: BUNDLE_FORMAT,
@@ -153,36 +155,42 @@ export async function buildBundle({ packs, source, exporter, fetchFile, i18n = n
     manifest.lang.push(`lang/${code}.json`);
   }
 
-  // Pictures: fetched a few at a time, written to the zip one at a time.
+  // Pictures and PDFs: fetched a few at a time (PDFs, which may be large, one at a time), written
+  // to the zip one at a time.
   const todo = [];
   for (const f of [...found.values()].sort((a, b) => a.path.localeCompare(b.path))) {
     const leave = (reason) => manifest.left.push({ path: f.path, reason, uses: f.uses });
-    if (f.kind !== 'image') leave('not a picture (Tavern Moot keeps pictures only)');
-    else if (!opts.pictures) leave('pictures not exported');
+    if (f.kind === 'other') leave('not a picture or PDF (Tavern Moot keeps only those)');
+    else if (f.kind === 'image' && !opts.pictures) leave('pictures not exported');
+    else if (f.kind === 'pdf' && !opts.pdfs) leave('PDFs not exported');
     else if (isRemote(f.path) && !opts.remote) leave('at a web address, not exported');
     else if (isCore(f.path) && !opts.core) leave('Foundry’s own file, not exported');
     else todo.push(f);
   }
   let written = Promise.resolve();
   let done = 0;
-  await pool(todo, 6, async (f) => {
+  const total = todo.length;
+  const fetchOne = async (f) => {
     let blob = null;
     let why = 'not found';
     try { blob = await fetchFile(f.path); } catch (err) { why = `could not be read (${err?.message ?? err})`; }
     const add = async () => {
       if (!blob) manifest.left.push({ path: f.path, reason: why, uses: f.uses });
       else if (!blob.size) manifest.left.push({ path: f.path, reason: 'empty', uses: f.uses });
-      else if (blob.size > FILE_MAX_BYTES) manifest.left.push({ path: f.path, reason: 'larger than 25 MB', uses: f.uses });
+      else if (f.kind === 'image' && blob.size > FILE_MAX_BYTES) manifest.left.push({ path: f.path, reason: 'larger than 25 MB', uses: f.uses });
+      else if (f.kind === 'pdf' && blob.size > PDF_MAX_BYTES) manifest.left.push({ path: f.path, reason: 'larger than 1 GB', uses: f.uses });
       else {
         const name = zipPathFor(f.path);
         if (!zip.has(name)) await zip.add(name, blob);
         manifest.files[f.path] = { file: name, size: blob.size, type: MEDIA_TYPES[extOf(f.path)] ?? blob.type ?? '' };
       }
-      onProgress({ stage: 'files', done: ++done, total: todo.length, label: f.path });
+      onProgress({ stage: 'files', done: ++done, total, label: f.path });
     };
     written = written.then(add);
     await written;
-  });
+  };
+  await pool(todo.filter((f) => f.kind === 'image'), 6, fetchOne);
+  await pool(todo.filter((f) => f.kind === 'pdf'), 1, fetchOne);
   await written;
 
   manifest.left.sort((a, b) => a.path.localeCompare(b.path));

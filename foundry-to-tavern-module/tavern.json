@@ -3,8 +3,8 @@
   "id": "foundry-to-tavern",
   "kind": "module",
   "name": "Foundry Import",
-  "version": "0.2.0",
-  "description": "Converts compendiums exported from FoundryVTT into campaign archives, folders and all, by a rules file that maps Foundry's types and fields onto your system's. Takes mana's Compendium Importer exports, or a bundle from the Export for Tavern Moot Foundry module, whose pictures it uploads to the campaign's files.",
+  "version": "0.3.0",
+  "description": "Converts compendiums exported from FoundryVTT into campaign archives, folders and all, by a rules file that maps Foundry's types and fields onto your system's. Takes mana's Compendium Importer exports, or a bundle from the Export for Tavern Moot Foundry module, whose pictures and PDFs it uploads to the campaign's files (PDF pages become PDF notes).",
   "authors": [
     "bmgraves"
   ],

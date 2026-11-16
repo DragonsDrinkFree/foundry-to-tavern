@@ -1,8 +1,8 @@
 {
   "id": "tavern-export",
   "title": "Export for Tavern Moot",
-  "description": "Exports compendiums, with the pictures they use, as one zip for the Foundry Import widget in Tavern Moot.",
-  "version": "0.1.0",
+  "description": "Exports compendiums, with the pictures and PDFs they use, as one zip for the Foundry Import widget in Tavern Moot.",
+  "version": "0.2.0",
   "authors": [{ "name": "bmgraves" }],
   "compatibility": { "minimum": "13", "verified": "14" },
   "esmodules": ["scripts/main.mjs"],
